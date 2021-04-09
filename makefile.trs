@@ -1,0 +1,80 @@
+##-----------------------------------------------------------------------------
+##  Copyright (C) Siemens AG 1998  All Rights Reserved.  Confidential
+##-----------------------------------------------------------------------------
+##
+## Project: NUMARIS/4
+##    File: \n4_servers1\pkg\MrServers\MrImaging\seq\fm_radial\makefile.trs
+## Version: \main\13
+##  Author: KOELLNER
+##  Charge: Michael Zwanger, MRIA-Seq, +9131/84-2672
+##    Date: 2013-01-28 12:44:12 +01:00
+##
+##    Lang: make
+##
+## Descrip: Makefile fuer Sequenz-DLL
+##
+##-----------------------------------------------------------------------------
+
+NOSYNGO() 
+
+
+##-----------------------------------------------------------------------------
+## local compiler flags
+##
+CPPFLAGS (-D_CONSOLE)
+CPPFLAGS (-DBUILD_SEQU)
+CPPFLAGS (-DSEQUENCE_CLASS_fm_radial)
+CPPFLAGS (-DSEQ_NAMESPACE=SEQ_fm_radial) 
+CPPFLAGS (-DMRPROT_DEP_OPT)
+
+
+##-----------------------------------------------------------------------------
+## source files
+##
+CPPSOURCES (fm_radial)
+CPPSOURCES (fm_radial_UI)
+CPPSOURCES (SBBCALIB)
+
+##-----------------------------------------------------------------------------
+## include paths
+##
+INCLPATHS (-I /n4_extsw/x86/extsw/MedCom/include)
+
+
+##-----------------------------------------------------------------------------
+## libraries to be linked
+##
+MSDEV_i586_WinNT400(LDLIBS (libUILink))
+
+LDLIBS (libSBB)
+LDLIBS (libSeqSysProp)
+LDLIBS (libSeqUT)
+LDLIBS (libSeqUtil)
+
+GCC_AMD_XLinux(LDLIBS(pmu))
+GCC_Linux(LDLIBS(pmu))
+
+LDLIBS (libUICtrl)
+LDLIBS (MeasNucleiBase)
+LDLIBS (MeasNucleiIF)
+LDLIBS (MrGenericDC)
+LDLIBS (MrParc)
+LDLIBS (MrProt)
+LDLIBS (MrProtocolData)
+LDLIBS (MrTrace)
+LDLIBS (UTrace)
+#LDLIBS (Sequence)
+
+
+##-----------------------------------------------------------------------------
+## target name
+##
+LIB (fm_radial)
+
+##-----------------------------------------------------------------------------
+##  Copyright (C) Siemens AG 1998  All Rights Reserved.  Confidential
+##-----------------------------------------------------------------------------
+
+
+
+
