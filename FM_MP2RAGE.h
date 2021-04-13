@@ -437,7 +437,8 @@ namespace SEQ_NAMESPACE
 		///         This class is basically empty on the measurement system
 		//  --------------------------------------------------------------
 		FM_MP2RAGEUI* m_pUI;
-
+		double      m_dDelayTI1              ;  // delay between RF pulse and start of GRE train 1
+		double      m_dDelayTI2              ;  // delay between GRE train 1 and start of GRE train 2
 
 
 

@@ -3,7 +3,7 @@
 ##-----------------------------------------------------------------------------
 ##
 ## Project: NUMARIS/4
-##    File: \n4_servers1\pkg\MrServers\MrImaging\seq\fm_radial\makefile.trs
+##    File: \n4_servers1\pkg\MrServers\MrImaging\seq\FM_MP2RAGE\makefile.trs
 ## Version: \main\13
 ##  Author: KOELLNER
 ##  Charge: Michael Zwanger, MRIA-Seq, +9131/84-2672
@@ -23,16 +23,16 @@ NOSYNGO()
 ##
 CPPFLAGS (-D_CONSOLE)
 CPPFLAGS (-DBUILD_SEQU)
-CPPFLAGS (-DSEQUENCE_CLASS_fm_radial)
-CPPFLAGS (-DSEQ_NAMESPACE=SEQ_fm_radial) 
+CPPFLAGS (-DSEQUENCE_CLASS_FM_MP2RAGE)
+CPPFLAGS (-DSEQ_NAMESPACE=SEQ_FM_MP2RAGE) 
 CPPFLAGS (-DMRPROT_DEP_OPT)
 
 
 ##-----------------------------------------------------------------------------
 ## source files
 ##
-CPPSOURCES (fm_radial)
-CPPSOURCES (fm_radial_UI)
+CPPSOURCES (FM_MP2RAGE)
+CPPSOURCES (FM_MP2RAGE_UI)
 CPPSOURCES (SBBCALIB)
 
 ##-----------------------------------------------------------------------------
@@ -69,7 +69,7 @@ LDLIBS (UTrace)
 ##-----------------------------------------------------------------------------
 ## target name
 ##
-LIB (fm_radial)
+LIB (FM_MP2RAGE)
 
 ##-----------------------------------------------------------------------------
 ##  Copyright (C) Siemens AG 1998  All Rights Reserved.  Confidential

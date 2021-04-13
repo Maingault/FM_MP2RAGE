@@ -873,10 +873,27 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	if (!m_TokTokSBB.prep(rMrProt,rSeqLim,rSeqExpo))
 	return m_TokTokSBB.getNLSStatus();
 
+	//. ----------------------------------------------------------------------------
+    //. Calculate Delay Fill-times and check, whether timing can be realized // Ajout Aur�lien TROTIER
+    //. ----------------------------------------------------------------------------
+	double minDelayTI1 = u_Projections * rMrProt.tr()[0]/2;
+	double minDelayTI2 = u_Projections * rMrProt.tr()[0] * 1.5;
+	CHANGE_LIMITS(&u_lTI1,(long) (minDelayTI1/1000.0),(long) 10000.,(long) 1.);
+
+	m_dDelayTI1 = u_lTI1 - minDelayTI1; 
+	m_dDelayTI2 = u_lTI2 - minDelayTI2;
+	/*m_dDelayTI1 = u_lTI1*1000.0 - minDelayTI1;
+	
+	if(u_lTI1*1000.0 < minDelayTI1)
+	{
+	u_lTI1 = minDelayTI1/1000;
+	m_dDelayTI1=0;
+	}*/
 
 	//. ----------------------------------------------------------------------------
 	//. Calculate TEFill-times and check, whether timing can be realized
 	//. ----------------------------------------------------------------------------
+
 	MinDurationBetweenADCandRF = 1.2 * SysProperties::getMinDurationBetweenRFPulseAndReadout();
 	MinDurationBetweenRFandADC = 40;// FM_MP2RAGE WIP SIEMENS
 	m_lTEMin = m_sSRF.getDuration()/2 + fSDSRoundUpGRT(m_sSgADC[0].getDuration()) + m_sGradReadDephFM.getTotalTime() + m_sGradRead.getTotalTime()/2 + MinDurationBetweenRFandADC;
@@ -1299,27 +1316,33 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 					ProjectionToMeasure=MaxProjectionInPhase;
 					else
 					ProjectionToMeasure=u_Projections-CurrentProjection;
+					for(int t = 0; t < 2; t++){
+						if(t=0)
+							fSBBFillTimeRun(m_dDelayTI1);
+						else
+							fSBBFillTimeRun(m_dDelayTI2);
 
-					for( int k=CurrentProjection; k < int(CurrentProjection+ProjectionToMeasure);k++){
-
-
-					    
-						m_sADC[0].setRelevantForMeasTime();
-						m_sADC[0].getMDH().setCphs (lPhase);
-						m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_ONLINE) ;
-						m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_PATREFSCAN) ;
-
-					
-
-						m_sSgADC[0].getMDH().setPATRefScan(true);
-
-						// run FM_MP2RAGE kernel	
-						mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockInitTR   , 1, 1, m_asSLC[0].getSliceIndex(), 0, 0) ;
-						lStatus=runKernel( rMrProt, rSeqLim, rSeqExpo, KERNEL_IMAGE, k,lChronologicSlice,lPartition);
-						mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockCheck   , 1, 2, m_asSLC[0].getSliceIndex(), 0, 0) ;
+						for( int k=CurrentProjection; k < int(CurrentProjection+ProjectionToMeasure);k++){
 
 
-					}				
+						    
+							m_sADC[0].setRelevantForMeasTime();
+							m_sADC[0].getMDH().setCphs (lPhase);
+							m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_ONLINE) ;
+							m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_PATREFSCAN) ;
+
+						
+
+							m_sSgADC[0].getMDH().setPATRefScan(true);
+
+							// run FM_MP2RAGE kernel	
+							mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockInitTR   , 1, 1, m_asSLC[0].getSliceIndex(), 0, 0) ;
+							lStatus=runKernel( rMrProt, rSeqLim, rSeqExpo, KERNEL_IMAGE, k,lChronologicSlice,lPartition);
+							mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockCheck   , 1, 2, m_asSLC[0].getSliceIndex(), 0, 0) ;
+
+
+						}
+					}
 				}			
 				CurrentProjection+=ProjectionToMeasure;
 
