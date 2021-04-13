@@ -140,6 +140,7 @@ static long dummy=1;
  // MP2RAGE variables
  long u_lTI1;
  long u_lTI2;
+ long u_lTotalTR;
 
  long u_Projections(10); // Define the number of projections
  long l_offset;
@@ -159,7 +160,7 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration;
-double l_version =  1.1;
+double l_version =  1.3;
 double l_currentVersion;
 bool u_bDump;
 // An elegant way to switch debug messages on and off without recompiling the sequence can be
@@ -484,6 +485,8 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	PARAM("TI1","ms", &u_lTI1, 100., 10000. , 1., 800.,"Inversion Time for first image");
 	PARAM("TI2","ms", &u_lTI2, 100., 10000. , 1., 2200.,"Inversion Time for seconde image");
 	PARAM_GROUP_END();
+
+	PARAM("TotalTR","ms", &u_lTotalTR, 100., 10000. , 1., 5000.,"Total relaxtion time");
 
 	PARAM("version","",&l_currentVersion, 1., 30.,.1, l_version,"");
 
@@ -876,19 +879,16 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. ----------------------------------------------------------------------------
     //. Calculate Delay Fill-times and check, whether timing can be realized // Ajout Aur�lien TROTIER
     //. ----------------------------------------------------------------------------
-	double minDelayTI1 = u_Projections * rMrProt.tr()[0]/2;
-	double minDelayTI2 = u_Projections * rMrProt.tr()[0] * 1.5;
+	double minDelayTI1 = u_Projections * rMrProt.tr()[0]/2;	
 	CHANGE_LIMITS(&u_lTI1,(long) (minDelayTI1/1000.0),(long) 10000.,(long) 1.);
+	m_dDelayTI1 = u_lTI1 - minDelayTI1;
 
-	m_dDelayTI1 = u_lTI1 - minDelayTI1; 
+	double minDelayTI2 = u_Projections * rMrProt.tr()[0] * 1.5 + m_dDelayTI1;
 	m_dDelayTI2 = u_lTI2 - minDelayTI2;
-	/*m_dDelayTI1 = u_lTI1*1000.0 - minDelayTI1;
+
+	double minDelayTR = 2 * u_Projections * rMrProt.tr()[0] + m_dDelayTI1 + m_dDelayTI2;
+	m_dDelayTR  = u_lTotalTR - minDelayTR            ;  // delay between GRE train 2 and total TR
 	
-	if(u_lTI1*1000.0 < minDelayTI1)
-	{
-	u_lTI1 = minDelayTI1/1000;
-	m_dDelayTI1=0;
-	}*/
 
 	//. ----------------------------------------------------------------------------
 	//. Calculate TEFill-times and check, whether timing can be realized
@@ -1317,7 +1317,7 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 					else
 					ProjectionToMeasure=u_Projections-CurrentProjection;
 					for(int t = 0; t < 2; t++){
-						if(t=0)
+						if(t==0)
 							fSBBFillTimeRun(m_dDelayTI1);
 						else
 							fSBBFillTimeRun(m_dDelayTI2);
@@ -1342,6 +1342,8 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 
 
 						}
+						if (t == 1)
+							fSBBFillTimeRun(m_dDelayTR);
 					}
 				}			
 				CurrentProjection+=ProjectionToMeasure;

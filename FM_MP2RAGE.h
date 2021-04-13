@@ -439,7 +439,7 @@ namespace SEQ_NAMESPACE
 		FM_MP2RAGEUI* m_pUI;
 		double      m_dDelayTI1              ;  // delay between RF pulse and start of GRE train 1
 		double      m_dDelayTI2              ;  // delay between GRE train 1 and start of GRE train 2
-
+		double      m_dDelayTR              ;  // delay between GRE train 2 and total TR
 
 
 		//  ------------------------------------------------------------------
