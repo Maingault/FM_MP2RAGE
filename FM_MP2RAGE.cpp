@@ -160,7 +160,7 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration;
-double l_version =  1.3;
+double l_version =  2.1;
 double l_currentVersion;
 bool u_bDump;
 // An elegant way to switch debug messages on and off without recompiling the sequence can be

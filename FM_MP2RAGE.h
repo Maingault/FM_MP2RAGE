@@ -414,6 +414,10 @@ namespace SEQ_NAMESPACE
 		// The SBBList connects all Sequence Building Blocks (SBBs). It therefore knows
 		//  all prepulses and can pass this information e.g. to the RSatSBBs
 		SBBList                m_mySBBList;
+	
+		// Ajout inversion pulse
+		SBBList           m_IRnsSBB;
+		SeqBuildBlockIRns m_IRns;
 
 		// SeqBuildBlockTokTokTok: Gradient knocking before measurement start (intro)
 		SeqBuildBlockTokTokTok m_TokTokSBB              	;
