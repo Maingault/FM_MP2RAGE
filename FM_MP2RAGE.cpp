@@ -142,6 +142,8 @@ static long dummy=1;
  long u_lTI2;
  long u_lTotalTR;
 
+ long u_lETL					;  //size of the Echo Train Length
+
  long u_Projections(10); // Define the number of projections
  long l_offset;
  selection u_AcqMode;
@@ -160,7 +162,7 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration;
-double l_version =  2.1;
+double l_version =  2.2;
 double l_currentVersion;
 bool u_bDump;
 // An elegant way to switch debug messages on and off without recompiling the sequence can be
@@ -243,6 +245,8 @@ FM_MP2RAGE::FM_MP2RAGE()
 , m_sADCzSet                                    ("m_sADCzSet")
 , m_sADCzNeg                                    ("m_sADCzNeg")
 
+, m_IRnsSBB()  // inversion pulse
+, m_IRns(&m_IRnsSBB)// inversion pulse
 
 , m_TokTokSBB                                   (&m_mySBBList)
 , m_CSatFatSBB                                  (&m_mySBBList)
@@ -488,6 +492,8 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 
 	PARAM("TotalTR","ms", &u_lTotalTR, 100., 10000. , 1., 5000.,"Total relaxtion time");
 
+	PARAM("Echo Train Length","", &u_lETL, 1, 256 , 1, 128,"Calibration square size");
+
 	PARAM("version","",&l_currentVersion, 1., 30.,.1, l_version,"");
 
 
@@ -579,6 +585,23 @@ NLSStatus FM_MP2RAGE::prepare (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqEx
 
 	//if (!m_SBBCALIB.prep( rMrProt, rSeqLim,rSeqExpo))
 	//	return SEQU_ERROR ;
+
+	double dReallySmallestRiseTime =  5.;
+    double dReallyBiggestAmplitude = 28.;
+
+        // These arrays take the MaxAmplitude and MinRiseTime values for the Sequence Building Blocks (SBB)
+        //  Order: FAST/NORMAL/WHISPER
+                                    // Default factor is 1.25 on GRAD_FAST, 1.0 on GRAD_NORMAL and GRAD_WHISPER
+    double  adMinRiseTimes[3] =  {   std::max( 1.25 * SysProperties::getGradMinRiseTime(SEQ::GRAD_FAST   ),dReallySmallestRiseTime),
+                                     std::max( 1.0 * SysProperties::getGradMinRiseTime(SEQ::GRAD_NORMAL ),dReallySmallestRiseTime),
+                                     std::max( 0.8 * SysProperties::getGradMinRiseTime(SEQ::GRAD_WHISPER),dReallySmallestRiseTime)
+                                 };
+
+                                    // Default factor is 1.0
+    double  adMaxGradAmplitudes[3] =  {  std::min( 1.0 * SysProperties::getGradMaxAmpl(SEQ::GRAD_FAST   ),dReallyBiggestAmplitude),
+                                         std::min( 0.8 * SysProperties::getGradMaxAmpl(SEQ::GRAD_NORMAL ),dReallyBiggestAmplitude),
+                                         std::min( 0.65 * SysProperties::getGradMaxAmpl(SEQ::GRAD_WHISPER),dReallyBiggestAmplitude)
+                                 };
 
 	//. ---------------------------------------------------------------------------
 	//. Define gradient rise times and strengths
@@ -875,6 +898,32 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 
 	if (!m_TokTokSBB.prep(rMrProt,rSeqLim,rSeqExpo))
 	return m_TokTokSBB.getNLSStatus();
+
+	//. ----------------------------------------------------------------------------
+    //. Preparation of non selective  Inversion Pulse
+    //. ----------------------------------------------------------------------------
+	
+	    // Tell, how many Inversion pulses would be used during the measurement
+        //  (needed for calculation of energy and time)
+    m_IRns.setRequestsPerMeasurement (1000);
+ //       // The spoiler gradient inside the SBB can be configured / limited
+ //       //  for the selected gradient mode
+ //       // An array with the maximum amplitudes for FAST/NORMAL/WHISPER is handed over
+ //       // If not set, a default is used.
+    m_IRns.setMaxMagnitudes(adMaxGradAmplitudes);
+ //       // ditto for the minimum rise time
+    m_IRns.setMinRiseTimes (adMinRiseTimes);
+
+
+ //       // Tell the SBB to use the longer rise times in case of a GSWD binary search
+ //       // NOTE: This method has to be called for every SeqBuildBlock you use.
+    m_IRns.setGSWDGradientPerformance(rMrProt, rSeqLim);
+        // prepare the saturation SBB
+	if(! m_IRns.IRprep(rMrProt, rSeqLim, rSeqExpo))
+	{
+		TRACE_PUT1_NLS(TC_INFO, TF_SEQ, "%s: m_IRns.prep failed.",ptModule,m_IRns.getNLSStatus());
+		return m_IRns.getNLSStatus();
+	}
 
 	//. ----------------------------------------------------------------------------
     //. Calculate Delay Fill-times and check, whether timing can be realized // Ajout Aur�lien TROTIER
@@ -1323,8 +1372,17 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 					else
 					ProjectionToMeasure=u_Projections-CurrentProjection;
 					for(int t = 0; t < 2; t++){
-						if(t==0)
+						if(t==0){
+							m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice]);
+							// ajout inversion pulse
+							//if(!m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice])) // lancement de l'inversion
+							//{
+							//	TRACE_PUT1_NLS(TC_INFO, TF_SEQ, "%s: m_IRns.run failed.",ptModule,m_IRns.getNLSStatus());
+							//	return m_IRns.getNLSStatus();
+							//}
+
 							fSBBFillTimeRun(m_dDelayTI1);
+						}
 						else
 							fSBBFillTimeRun(m_dDelayTI2);
 
