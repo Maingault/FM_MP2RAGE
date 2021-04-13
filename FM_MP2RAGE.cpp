@@ -137,6 +137,10 @@ static long dummy=1;
 //. ----------------------------------------------------------
 //. Instantiate FM_MP2RAGE ui parameter and Gradient tables (ParameterMap)
 //. ----------------------------------------------------------
+ // MP2RAGE variables
+ long u_lTI1;
+ long u_lTI2;
+
  long u_Projections(10); // Define the number of projections
  long l_offset;
  selection u_AcqMode;
@@ -155,7 +159,7 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration;
-double l_version =  13.3;
+double l_version =  1.1;
 double l_currentVersion;
 bool u_bDump;
 // An elegant way to switch debug messages on and off without recompiling the sequence can be
@@ -453,11 +457,9 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 
 	PARAM("Do Calibration", &u_bDoCalibration, false ,"Do Calibration");	
 
-	PARAM_SELECT("Mode Acq",&u_AcqMode, 1 ); 
-	OPTION("NON",1);
-	OPTION("REODER",2);
-	OPTION("GA",3);
-	//OPTION("GA Original",4);
+	PARAM_SELECT("Mode acq",&u_AcqMode, 1 ); 
+	OPTION("Uni",1);
+	OPTION("GA",2);
 	PARAM_SELECT_END();
 
 	PARAM("ADC offset","#s",  &l_offset, 0,10,2,4,"Time between ADC and gradient");
@@ -477,6 +479,11 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	PARAM_GROUP_END();
 
 	PARAM("Dump", &u_bDump, true, "change the ICE program to do the dump");
+
+	PARAM_GROUP();
+	PARAM("TI1","ms", &u_lTI1, 100., 10000. , 1., 800.,"Inversion Time for first image");
+	PARAM("TI2","ms", &u_lTI2, 100., 10000. , 1., 2200.,"Inversion Time for seconde image");
+	PARAM_GROUP_END();
 
 	PARAM("version","",&l_currentVersion, 1., 30.,.1, l_version,"");
 
@@ -781,38 +788,38 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 
 	int proj_traj = 0;
 
-	if (u_AcqMode == 1){
-		proj_traj = u_Projections;
-		u_AcqMode = 4;
-	}
+	
 
-	if (u_AcqMode == 2){
+	if (u_AcqMode == 1){
 		proj_traj = 2*u_Projections;
 	}
+	else{
+		proj_traj = u_Projections;
+	}
 
-		for ( int i=0;i < u_Projections; i++)		
-		{
+	for ( int i=0;i < u_Projections; i++)		
+	{
 
-			hn=-1+(2*i)/(double(proj_traj)-1);
-			alpha=acos(hn);
+		hn=-1+(2*i)/(double(proj_traj)-1);
+		alpha=acos(hn);
 
-			if((i==0)||i==(proj_traj-1)){
-				beta=0;
-			}
-			else{
-				beta=fmod((float)beta1+3.6/sqrt((float)proj_traj*(1-hn*hn)),2*M_PI);
-			}
-
-			beta1=beta;
-			Gradx[i]=cos(beta)*sin(alpha)*GradientAmplitudeFOV;
-			Grady[i]=sin(beta)*sin(alpha)*GradientAmplitudeFOV;
-			Gradz[i]=cos(alpha)*GradientAmplitudeFOV;
-
-			GradxDeph[i]=cos(beta)*sin(alpha)*DephGradAmpl;
-			GradyDeph[i]=sin(beta)*sin(alpha)*DephGradAmpl;
-			GradzDeph[i]=cos(alpha)*DephGradAmpl;		
-
+		if((i==0)||i==(proj_traj-1)){
+			beta=0;
 		}
+		else{
+			beta=fmod((float)beta1+3.6/sqrt((float)proj_traj*(1-hn*hn)),2*M_PI);
+		}
+
+		beta1=beta;
+		Gradx[i]=cos(beta)*sin(alpha)*GradientAmplitudeFOV;
+		Grady[i]=sin(beta)*sin(alpha)*GradientAmplitudeFOV;
+		Gradz[i]=cos(alpha)*GradientAmplitudeFOV;
+
+		GradxDeph[i]=cos(beta)*sin(alpha)*DephGradAmpl;
+		GradyDeph[i]=sin(beta)*sin(alpha)*DephGradAmpl;
+		GradzDeph[i]=cos(alpha)*DephGradAmpl;		
+
+	}
 
 	//. Initialization of GradTab for Radial sampling.
 
@@ -820,7 +827,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. ---------------------------------------------------------------------------
 	//. Initialization of GradTab for ute sampling with Golden Angle reordering
 	//. ---------------------------------------------------------------------------    
-	if(u_AcqMode==2 && u_Projections!=200000 && dummy!=u_Projections){
+	if(u_AcqMode==1 && u_Projections!=200000 && dummy!=u_Projections){
 		for ( int i=0;i < proj_traj; i++)		
 		{
 			Gradx[i] = (long double) (pow( (double)(-1),  i)) *Gradx[i];
@@ -834,33 +841,13 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	}
 
 
-	//. ---------------------------------------------------------------------------
-	//. Initialization of GradTab for ute sampling with Golden Angle 
-	//. ---------------------------------------------------------------------------    
-	if (u_AcqMode==3){
-
-		ph1 = 0.4656;
-		ph2 = 0.6823;
-
-		for ( int i=0;i < u_Projections; i++){
-			theta = acos(fmod(ph1*i,1));
-			phi = 2* M_PI * fmod(ph2*i,1);
-
-			Gradx[i] = sin(theta*i)*cos(phi*i)*GradientAmplitudeFOV;
-			Grady[i] = sin(theta*i)*sin(phi*i)*GradientAmplitudeFOV;
-			Gradz[i] = cos(theta*i + M_PI*i)  *GradientAmplitudeFOV;
-
-			GradxDeph[i]= sin(theta*i)*cos(phi*i) *DephGradAmpl;	
-			GradyDeph[i] = sin(theta*i)*sin(phi*i)*DephGradAmpl;
-			GradzDeph[i] = cos(theta*i + M_PI*i)  *DephGradAmpl;
-		}
-	}
+	
 
 	//. ---------------------------------------------------------------------------
 	//. Initialization of GradTab for ute sampling with original Golden Angle
 	//. ---------------------------------------------------------------------------  
 
-	if(u_AcqMode==4){
+	if(u_AcqMode==2 && u_Projections!=200000 && dummy!=u_Projections ){
 			for ( int i=0;i < u_Projections; i++){
 				alpha =acos(fmod(0.4656*i,1));
 				if (fmod((float)i,(float)2))
