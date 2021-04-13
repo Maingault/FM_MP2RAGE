@@ -415,6 +415,10 @@ namespace SEQ_NAMESPACE
 		//  all prepulses and can pass this information e.g. to the RSatSBBs
 		SBBList                m_mySBBList;
 
+		// Ajout inversion pulse
+		SBBList           m_IRnsSBB;
+		SeqBuildBlockIRns m_IRns;
+
 		// SeqBuildBlockTokTokTok: Gradient knocking before measurement start (intro)
 		SeqBuildBlockTokTokTok m_TokTokSBB              	;
 		// SeqBuildBlockRSat: Regional saturation bands
@@ -438,7 +442,8 @@ namespace SEQ_NAMESPACE
 		//  --------------------------------------------------------------
 		FM_MP2RAGEUI* m_pUI;
 
-
+		double      m_dDelayTI1              ;  // delay between RF pulse and start of GRE train 1
+		double      m_dDelayTI2              ;  // delay between GRE train 1 and start of GRE train 2
 
 
 		//  ------------------------------------------------------------------
