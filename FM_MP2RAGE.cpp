@@ -162,7 +162,7 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration;
-double l_version =  2.2;
+double l_version =  3.1;
 double l_currentVersion;
 bool u_bDump;
 // An elegant way to switch debug messages on and off without recompiling the sequence can be
@@ -942,22 +942,61 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. ----------------------------------------------------------------------------
     //. Calculate Delay Fill-times and check, whether timing can be realized // Ajout Aur�lien TROTIER
     //. ----------------------------------------------------------------------------
-	double minDelayTI1 = u_Projections * rMrProt.tr()[0]/2;	
-	//CHANGE_LIMITS(&u_lTI1,(long) (minDelayTI1/1000.0),(long) 10000.,(long) 1.);
-	m_dDelayTI1 = u_lTI1 - minDelayTI1/1000;
+	//double minDelayTI1 = u_lETL * rMrProt.tr()[0]/2;	
+	////CHANGE_LIMITS(&u_lTI1,(long) (minDelayTI1/1000.0),(long) 10000.,(long) 1.);
+	//m_dDelayTI1 = u_lTI1 - minDelayTI1/1000;
 
-	double minDelayTI2 = u_Projections * rMrProt.tr()[0] * 1.5 + m_dDelayTI1;
-	m_dDelayTI2 = u_lTI2 - minDelayTI2/1000;
+	//if(m_dDelayTI1 < 0)
+	//	u_lTI1 = minDelayTI1/1000;
 
-	double minDelayTR = 2 * u_Projections * rMrProt.tr()[0] + m_dDelayTI1 + m_dDelayTI2;
-	m_dDelayTR  = u_lTotalTR - minDelayTR/1000            ;  // delay between GRE train 2 and total TR
+	//double minDelayTI2 = u_lETL * rMrProt.tr()[0] * 1.5 + m_dDelayTI1;
+	//m_dDelayTI2 = u_lTI2 - minDelayTI2/1000;
+
+	//if(m_dDelayTI2 < 0)
+	//	u_lTI2 = minDelayTI2/1000;
+
+	//double minDelayTR = 2 * u_lETL * rMrProt.tr()[0] + m_dDelayTI1 + m_dDelayTI2;
+	//m_dDelayTR  = u_lTotalTR - minDelayTR/1000            ;  // delay between GRE train 2 and total TR
+	//
+	//
 	
-	if(m_dDelayTI1 < 0)
-		u_lTI1 = minDelayTI1/1000;
-	if(m_dDelayTI2 < 0)
-		u_lTI2 = minDelayTI2/1000;
-	if(m_dDelayTR < 0)
-		u_lTotalTR = minDelayTR/1000;
+	/*if(m_dDelayTR < 0)
+		u_lTotalTR = minDelayTR/1000;*/
+
+	double minDelayTI1 = ((m_IRns.getDurationPerRequest()+m_IRns.getBIR4SRDuration()/2)+ (u_lETL/2+1) * rMrProt.tr()[0]);
+	CHANGE_LIMITS(&u_lTI1,(long) (minDelayTI1/1000.0),(long) 10000.,(long) 1.);
+	m_dDelayTI1 = u_lTI1*1000.0 - minDelayTI1;
+
+	if(u_lTI1*1000.0 < minDelayTI1)
+	{
+	u_lTI1 = minDelayTI1/1000;
+	m_dDelayTI1=0;
+	}
+
+	std::cout << "u_lTI1 = " << static_cast<long>(u_lTI1) << " || minDelayTI1 = " << minDelayTI1/1000 << " || m_dDelayTI1 = " << m_dDelayTI1/1000 << std::endl;
+
+	double minDelayTI2 = u_lTI1*1000 + u_lETL * rMrProt.tr()[0];
+	CHANGE_LIMITS(&u_lTI2,(long) (minDelayTI2/1000.0),(long) 10000.,(long) 1.);
+	m_dDelayTI2 = u_lTI2*1000 - minDelayTI2;
+
+	if(u_lTI2*1000.0 < minDelayTI2)
+	{
+	u_lTI2 = minDelayTI2/1000;
+	m_dDelayTI2=0;
+	}
+
+	std::cout << "u_lTI2 = " << static_cast<long>(u_lTI2) << " || minDelayTI2 = " << minDelayTI2/1000 << " || m_dDelayTI2 = " << m_dDelayTI2/1000 << std::endl;
+
+	double minDelayTR = u_lTI2*1000 + (u_lETL/2-1) * rMrProt.tr()[0];
+	CHANGE_LIMITS(&u_lTotalTR,(long) (minDelayTR/1000.0),(long) 10000.,(long) 1.);
+	m_dDelayTR = u_lTotalTR*1000 - minDelayTR;
+
+	if(u_lTotalTR*1000.0 < minDelayTR)
+	{
+	u_lTotalTR = minDelayTR/1000;
+	m_dDelayTR=0;
+	}
+
 
 	//. ----------------------------------------------------------------------------
 	//. Calculate TEFill-times and check, whether timing can be realized
