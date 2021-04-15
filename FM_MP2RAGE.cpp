@@ -819,10 +819,10 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	std::cout<< "m_MP2Projections =" << m_MP2Projections << std::endl;
 	int proj_traj = 0;
 
-	int repetitions =      ceil((float) u_Projections/u_lETL);
+	repetitions =      ceil((float) u_Projections/u_lETL);
 	std::cout<<" Repetitions = " << repetitions << std::endl;
-	
-	u_Projections = 
+	m_MP2Projections = u_lETL * (int (u_Projections/u_lETL));
+	//u_Projections = repetitions * u_lETL;
 
 	if (u_AcqMode == 1){
 		proj_traj = 2*u_Projections;
@@ -1379,45 +1379,49 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 					ProjectionToMeasure=MaxProjectionInPhase;
 					else
 					ProjectionToMeasure=u_Projections-CurrentProjection;
-					for
-					for(int t = 0; t < 2; t++){
-						if(t==0){
-							//m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice]);
-							// ajout inversion pulse
-							if(!m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice])) // lancement de l'inversion
-							{
-								TRACE_PUT1_NLS(TC_INFO, TF_SEQ, "%s: m_IRns.run failed.",ptModule,m_IRns.getNLSStatus());
-								return m_IRns.getNLSStatus();
+					
+					for (int o = 0; o <repetitions; o++){
+						for(int t = 0; t < 2; t++){
+							if(t==0){
+								//m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice]);
+								// ajout inversion pulse
+								if(!m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice])) // lancement de l'inversion
+								{
+									TRACE_PUT1_NLS(TC_INFO, TF_SEQ, "%s: m_IRns.run failed.",ptModule,m_IRns.getNLSStatus());
+									return m_IRns.getNLSStatus();
+								}
+
+								fSBBFillTimeRun(m_dDelayTI1);
 							}
+							else
+								fSBBFillTimeRun(m_dDelayTI2);
 
-							fSBBFillTimeRun(m_dDelayTI1);
+							/*for( int k=CurrentProjection; k < int(CurrentProjection+ProjectionToMeasure);k++){*/
+							for( int k=0; k < u_lETL;k++){
+
+
+							    
+								m_sADC[0].setRelevantForMeasTime();
+								m_sADC[0].getMDH().setCphs (lPhase);
+								m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_ONLINE) ;
+								m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_PATREFSCAN) ;
+
+							
+
+								m_sSgADC[0].getMDH().setPATRefScan(true);
+
+								// run FM_MP2RAGE kernel	
+								mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockInitTR   , 1, 1, m_asSLC[0].getSliceIndex(), 0, 0) ;
+								lStatus=runKernel( rMrProt, rSeqLim, rSeqExpo, KERNEL_IMAGE, o*u_lETL + k,lChronologicSlice,lPartition);
+								mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockCheck   , 1, 2, m_asSLC[0].getSliceIndex(), 0, 0) ;
+
+
+							}
+							if (t == 1)
+								fSBBFillTimeRun(m_dDelayTR);
 						}
-						else
-							fSBBFillTimeRun(m_dDelayTI2);
-
-						for( int k=CurrentProjection; k < int(CurrentProjection+ProjectionToMeasure);k++){
-
-
-						    
-							m_sADC[0].setRelevantForMeasTime();
-							m_sADC[0].getMDH().setCphs (lPhase);
-							m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_ONLINE) ;
-							m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_PATREFSCAN) ;
-
-						
-
-							m_sSgADC[0].getMDH().setPATRefScan(true);
-
-							// run FM_MP2RAGE kernel	
-							mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockInitTR   , 1, 1, m_asSLC[0].getSliceIndex(), 0, 0) ;
-							lStatus=runKernel( rMrProt, rSeqLim, rSeqExpo, KERNEL_IMAGE, k,lChronologicSlice,lPartition);
-							mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockCheck   , 1, 2, m_asSLC[0].getSliceIndex(), 0, 0) ;
-
-
-						}
-						if (t == 1)
-							fSBBFillTimeRun(m_dDelayTR);
 					}
+
 				}			
 				CurrentProjection+=ProjectionToMeasure;
 
