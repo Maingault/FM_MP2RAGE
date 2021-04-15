@@ -419,7 +419,7 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	lMax = 2000000000;
 	rSeqLim.setRepetitionsDelayTime         (        0,     lMax,     lInc,        0)  ;
 	rSeqLim.setIntro                       (SEQ::OFF);
-    rSeqLim.getRadialViews().set("trufi_cv::setRadialViews", 1, 200000, 1, 64, true, 0, false);
+    rSeqLim.getRadialViews().set("trufi_cv::setRadialViews", 1, 200000, 1, 256, true, 0, false);
 
 
 	//. --------------------------------------------------------------------------------------
@@ -812,18 +812,24 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	double ph2;
 	double phi;
 	double theta;
-	
+	int proj_traj = 0;
 
 	std::cout<< "u_lETL =" << u_lETL << std::endl;
 	std::cout<< "u_Projections =" << u_Projections << std::endl;
-	std::cout<< "m_MP2Projections =" << m_MP2Projections << std::endl;
-	int proj_traj = 0;
+	
+	
 
 	repetitions =      ceil((float) u_Projections/u_lETL);
 	std::cout<<" Repetitions = " << repetitions << std::endl;
-	m_MP2Projections = u_lETL * (int (u_Projections/u_lETL));
-	//u_Projections = repetitions * u_lETL;
 
+	m_MP2Projections = u_lETL * repetitions;
+
+	std::cout<< "m_MP2Projections =" << m_MP2Projections << std::endl;
+	if (m_MP2Projections < 200000)
+		u_Projections = m_MP2Projections;
+
+	std::cout << "Nombre projections requise = " << u_Projections << std::endl;
+	std::cout << "Nombre gradients requis = " << repetitions*u_lETL << std::endl;
 	if (u_AcqMode == 1){
 		proj_traj = 2*u_Projections;
 	}
@@ -937,7 +943,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
     //. Calculate Delay Fill-times and check, whether timing can be realized // Ajout Aur�lien TROTIER
     //. ----------------------------------------------------------------------------
 	double minDelayTI1 = u_Projections * rMrProt.tr()[0]/2;	
-	CHANGE_LIMITS(&u_lTI1,(long) (minDelayTI1/1000.0),(long) 10000.,(long) 1.);
+	//CHANGE_LIMITS(&u_lTI1,(long) (minDelayTI1/1000.0),(long) 10000.,(long) 1.);
 	m_dDelayTI1 = u_lTI1 - minDelayTI1/1000;
 
 	double minDelayTI2 = u_Projections * rMrProt.tr()[0] * 1.5 + m_dDelayTI1;
@@ -947,11 +953,11 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	m_dDelayTR  = u_lTotalTR - minDelayTR/1000            ;  // delay between GRE train 2 and total TR
 	
 	if(m_dDelayTI1 < 0)
-		u_lTI1 = minDelayTI1;
+		u_lTI1 = minDelayTI1/1000;
 	if(m_dDelayTI2 < 0)
-		u_lTI2 = minDelayTI2;
+		u_lTI2 = minDelayTI2/1000;
 	if(m_dDelayTR < 0)
-		u_lTotalTR = minDelayTR;
+		u_lTotalTR = minDelayTR/1000;
 
 	//. ----------------------------------------------------------------------------
 	//. Calculate TEFill-times and check, whether timing can be realized
