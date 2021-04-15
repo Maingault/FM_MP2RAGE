@@ -1108,7 +1108,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//.  update correction secan time 
 	//. ----------------------------------------------------------------------------		
     rSeqExpo.setPreScans               (3000);   
-    rSeqExpo.setRelevantReadoutsForMeasTime ( m_lPhasesToMeasure * m_lSlicesToMeasure  * u_Projections  * rMrProt.averages());
+    rSeqExpo.setRelevantReadoutsForMeasTime ( m_lPhasesToMeasure * m_lSlicesToMeasure  * 2* u_Projections  * rMrProt.averages());
 
 	//. ----------------------------------------------------------------------------
 	//.  calculation dRfEnergyInSRFs
