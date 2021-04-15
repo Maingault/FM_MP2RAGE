@@ -1071,6 +1071,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 		m_lKernelRequestsPerMeasurement+=3000;
 
 	dMeasureTimeUsec = m_lKernelRequestsPerMeasurement * rMrProt.tr()[0] ;
+	dMeasureTimeUsec = dMeasureTimeUsec + (m_dDelayTI1+m_dDelayTI2+m_dDelayTR + m_IRns.getDurationPerRequest()) * repetitions;
 	//dMeasureTimeUsec += m_lKernelRequestsPerMeasurement * (m_lTrigHaltDuration1 + m_lTrigHaltDuration2)/ u_Projections;
 
 	//. ----------------------------------------------------------------------------
