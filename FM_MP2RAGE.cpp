@@ -919,7 +919,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	
 	    // Tell, how many Inversion pulses would be used during the measurement
         //  (needed for calculation of energy and time)
-    m_IRns.setRequestsPerMeasurement (3);
+    m_IRns.setRequestsPerMeasurement (repetitions);
  //       // The spoiler gradient inside the SBB can be configured / limited
  //       //  for the selected gradient mode
  //       // An array with the maximum amplitudes for FAST/NORMAL/WHISPER is handed over
@@ -1065,7 +1065,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. ----------------------------------------------------------------------------
 	//.  calculation dMeasureTimeUsec
 	//. ----------------------------------------------------------------------------	
-	double m_lKernelRequestsPerMeasurement= m_lPhasesToMeasure * m_lSlicesToMeasure  * u_Projections  * rMrProt.averages();
+	double m_lKernelRequestsPerMeasurement= m_lPhasesToMeasure * m_lSlicesToMeasure  * (2*u_Projections)  * rMrProt.averages();
 	std::cout << "nbkernel == "<< m_lKernelRequestsPerMeasurement << std::endl;
 	if(u_dummyScan)
 		m_lKernelRequestsPerMeasurement+=3000;
@@ -1086,7 +1086,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	double m_dTotalMeasureTimeUsec=0.0;
 	m_dTotalMeasureTimeUsec =  dMeasureTimeUsec * (m_lRepetitionsToMeasure + 1);
 	m_dTotalMeasureTimeUsec += (double) m_TokTokSBB.getDurationPerRequest();
-
+	
 	if(u_bDoCalibration)
 	m_dTotalMeasureTimeUsec += (double) m_SBBCALIB.getDurationPerRequest(); 
     if ( (rMrProt.getsPhysioImaging().getlMethod1() == SEQ::METHOD_TRIGGERING) &&
@@ -1112,9 +1112,10 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. ----------------------------------------------------------------------------
 	//.  calculation dRfEnergyInSRFs
 	//. ----------------------------------------------------------------------------		
-	dRfEnergyInSRFs  = m_lKernelRequestsPerMeasurement * m_sSRF.getRFInfo()  * (rMrProt.repetitions()+1); // should i add RF info of SBBCALIB (Aurel)
+	dRfEnergyInSRFs  = m_lKernelRequestsPerMeasurement * m_sSRF.getRFInfo()  * (rMrProt.repetitions()+1) ; // should i add RF info of SBBCALIB (Aurel)
+	dRfEnergyInSRFs = dRfEnergyInSRFs + m_IRns.getRFInfoPerRequest()*repetitions;
 	if(u_bDoCalibration)
-	dRfEnergyInSRFs = m_SBBCALIB.getRFInfoPerRequest() + dRfEnergyInSRFs;
+		dRfEnergyInSRFs = m_SBBCALIB.getRFInfoPerRequest() + dRfEnergyInSRFs ;
 
 	//std::cout << "Energy SBB" << m_SBBCALIB.getRFInfoPerRequest() << std::endl;
 
@@ -1135,7 +1136,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. ---------------------------------------------------------------------------
 	fSUSetSequenceString ("fl", rMrProt, rSeqExpo); // tell the basic sequence string
 	rSeqExpo.setMeasured3dPartitions(1);
-    rSeqExpo.setRFInfo(dRfEnergyInSRFs );
+    rSeqExpo.setRFInfo(dRfEnergyInSRFs);
 	rSeqExpo.setMeasureTimeUsec (dMeasureTimeUsec);
 	rSeqExpo.setTotalMeasureTimeUsec(m_dTotalMeasureTimeUsec );
 	rSeqExpo.setMeasuredPELines(u_Projections);
