@@ -144,7 +144,7 @@ static long dummy=1;
 
  long u_lETL					;  //size of the Echo Train Length
 
- long u_Projections(10); // Define the number of projections
+ long u_Projections(10); // Define the number of projections required
  long l_offset;
  selection u_AcqMode;
  selection u_Mode;
@@ -435,7 +435,7 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	rSeqLim.setBandWidthPerPixel        (    0,        80,     10000,       10,         330);
 	rSeqLim.setReadoutOSFactor(1.0) ;
 
-
+	rSeqLim.setExtSrfFilename ("%MEASDAT%/extrf.dat"); // pulse for IRn
 	//. -----------------------------------------------------------------------------
 	//. Configure Reconstruction / Interpolation
 	//. -----------------------------------------------------------------------------
@@ -643,6 +643,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 
 	rMrProt.kSpace().radialInterleavesPerImage(1);
 	u_Projections = rMrProt.kSpace().radialViews();
+	
 	// make slice thickness = in-plane voxel size (tricky - cast away the const to avoid compiler errors) 
 	const_cast<Slice*>(&rMrProt.sliceSeries()[0])->thickness( rMrProt.sliceSeries()[0].readoutFOV() );
 	rMrProt.tablePositioningMode(SEQ::TP_POS_MODE_ISO);	
@@ -811,10 +812,17 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	double ph2;
 	double phi;
 	double theta;
+	
 
+	std::cout<< "u_lETL =" << u_lETL << std::endl;
+	std::cout<< "u_Projections =" << u_Projections << std::endl;
+	std::cout<< "m_MP2Projections =" << m_MP2Projections << std::endl;
 	int proj_traj = 0;
 
+	int repetitions =      ceil((float) u_Projections/u_lETL);
+	std::cout<<" Repetitions = " << repetitions << std::endl;
 	
+	u_Projections = 
 
 	if (u_AcqMode == 1){
 		proj_traj = 2*u_Projections;
@@ -905,7 +913,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	
 	    // Tell, how many Inversion pulses would be used during the measurement
         //  (needed for calculation of energy and time)
-    m_IRns.setRequestsPerMeasurement (1000);
+    m_IRns.setRequestsPerMeasurement (3);
  //       // The spoiler gradient inside the SBB can be configured / limited
  //       //  for the selected gradient mode
  //       // An array with the maximum amplitudes for FAST/NORMAL/WHISPER is handed over
@@ -1371,15 +1379,16 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 					ProjectionToMeasure=MaxProjectionInPhase;
 					else
 					ProjectionToMeasure=u_Projections-CurrentProjection;
+					for
 					for(int t = 0; t < 2; t++){
 						if(t==0){
-							m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice]);
+							//m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice]);
 							// ajout inversion pulse
-							//if(!m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice])) // lancement de l'inversion
-							//{
-							//	TRACE_PUT1_NLS(TC_INFO, TF_SEQ, "%s: m_IRns.run failed.",ptModule,m_IRns.getNLSStatus());
-							//	return m_IRns.getNLSStatus();
-							//}
+							if(!m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice])) // lancement de l'inversion
+							{
+								TRACE_PUT1_NLS(TC_INFO, TF_SEQ, "%s: m_IRns.run failed.",ptModule,m_IRns.getNLSStatus());
+								return m_IRns.getNLSStatus();
+							}
 
 							fSBBFillTimeRun(m_dDelayTI1);
 						}

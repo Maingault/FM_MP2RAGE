@@ -329,6 +329,7 @@ namespace SEQ_NAMESPACE
 		long	   m_lTEMin									   ;
 	    long 	   MinDurationBetweenADCandRF                  ;
 	    long 	   MinDurationBetweenRFandADC                  ;
+		long	   m_MP2Projections							   ;
 		// Gradient Amplitude
 		long m_dGradMaxAmplitude							   ;
 		long GradientAmplitudeFOV							   ;
