@@ -331,6 +331,7 @@ namespace SEQ_NAMESPACE
 	    long 	   MinDurationBetweenRFandADC                  ;
 		long	   m_MP2Projections							   ;
 		int		   repetitions								   ;
+		int m_t;
 		// Gradient Amplitude
 		long m_dGradMaxAmplitude							   ;
 		long GradientAmplitudeFOV							   ;
@@ -365,6 +366,11 @@ namespace SEQ_NAMESPACE
 		// define an event that resets the transmitter phase
 		sFREQ_PHASE              m_sSRFzNeg               ;
 
+		sRF_PULSE_RECT           m_sSRF02                   ;
+		// define an event that sets the transmitter phase
+		sFREQ_PHASE              m_sSRF02zSet               ;
+		// define an event that resets the transmitter phase
+		sFREQ_PHASE              m_sSRF02zNeg               ;
 		
 		//. ----------------------------------------------------------
 		//. Instantiate Gradient Pulse objects

@@ -162,7 +162,7 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration;
-double l_version =  3.1;
+double l_version =  4.1;
 double l_currentVersion;
 bool u_bDump;
 // An elegant way to switch debug messages on and off without recompiling the sequence can be
@@ -220,6 +220,11 @@ FM_MP2RAGE::FM_MP2RAGE()
 , m_sSRF                                        ("FM_MP2RAGE_ex")
 , m_sSRFzSet                                    ("m_sSRFzSet")
 , m_sSRFzNeg                                    ("m_sSRFzNeg")
+
+, m_sSRF02                                        ("FM_MP2RAGE_ex2")
+, m_sSRF02zSet                                    ("m_sSRF02zSet")
+, m_sSRF02zNeg                                    ("m_sSRF02zNeg")
+
 , m_sGradRead                                   ("m_sGradRead")        
 , m_sGradSlice                                  ("m_sGradSlice")
 , m_sGradPhase                                  ("m_sGradPhase") 
@@ -425,7 +430,11 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	//. --------------------------------------------------------------------------------------
 	//. Define properties of excitation
 	//. --------------------------------------------------------------------------------------
-	rSeqLim.setFlipAngle                        (     5.000,  180.000,    1.000,   15.000)  ;
+	//rSeqLim.setFlipAngle                        (     5.000,  180.000,    1.000,   15.000)  ;
+	for (unsigned lContrast = 0; lContrast < 2; lContrast++)
+	{
+		rSeqLim.setFlipAngleArray            (               lContrast,     1.000,  90.000,    1.000,   7.000) ;
+	}
 	rSeqLim.setRFSpoiling (SEQ::ON, SEQ::OFF) ;
 
 
@@ -619,9 +628,16 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	m_sSRF.setThickness            (10000.0);                        // This is just a dummy slice thickness
 	m_sSRF.setTypeExcitation       ();                               // Resets all moments to 0 in Unit test
 	m_sSRF.setDuration             (60);                            // Most times are in microseconds
-	m_sSRF.setFlipAngle            (rMrProt.flipAngle());           // Sets flip angle based on UI (in degrees)
+	m_sSRF.setFlipAngle            (rMrProt.flipAngleArray()[0]);           // Sets flip angle based on UI (in degrees)
 	m_sSRF.setInitialPhase         (0);                              // Sets phase of pulse in rotating frame to 0 (+x) 
 	m_sSRF.setSamples              (60);   
+
+	m_sSRF02.setThickness            (10000.0);                        // This is just a dummy slice thickness
+	m_sSRF02.setTypeExcitation       ();                               // Resets all moments to 0 in Unit test
+	m_sSRF02.setDuration             (60);                            // Most times are in microseconds
+	m_sSRF02.setFlipAngle            (rMrProt.flipAngleArray()[1]);           // Sets flip angle based on UI (in degrees)
+	m_sSRF02.setInitialPhase         (0);                              // Sets phase of pulse in rotating frame to 0 (+x) 
+	m_sSRF02.setSamples              (60); 
 
 	// tell unit test that the thickness of the RF pulse is set to the sat thickness on purpose
 #ifndef VXWORKS
@@ -629,7 +645,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	SeqUT.setRFThicknessInfo ( &m_sSRF, 10000.0 );
 #endif
 	if (!m_sSRF.prepRect(rMrProt,rSeqExpo)) return (m_sSRF.getNLSStatus());
-
+	if (!m_sSRF02.prepRect(rMrProt,rSeqExpo)) return (m_sSRF02.getNLSStatus());
 
 	//. -------------------------------------------------------------------------------
 	//. Keep the FOV 3D isotropic
@@ -863,13 +879,15 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 
 	//. Initialization of GradTab for Radial sampling.
 
-
+	std::cout << "TEST acq_mod ========================================= "<< u_AcqMode << std::endl;
 	//. ---------------------------------------------------------------------------
 	//. Initialization of GradTab for ute sampling with Golden Angle reordering
 	//. ---------------------------------------------------------------------------    
 	if(u_AcqMode==1 && u_Projections!=200000 && dummy!=u_Projections){
+		std::cout << "TEST CONDITION ========================================= "<< u_AcqMode << std::endl;
 		for ( int i=0;i < proj_traj; i++)		
 		{
+			
 			Gradx[i] = (long double) (pow( (double)(-1),  i)) *Gradx[i];
 			Grady[i] = (long double) (pow( (double)(-1),  i)) *Grady[i];
 			Gradz[i] = (long double) (pow( (double)(-1),  i)) *Gradz[i];
@@ -1368,9 +1386,11 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 	//. --------------------------------------------------------------------------
 	//. Set the frequency/phase properties of the RF pulses
 	//. --------------------------------------------------------------------------
-	m_sSRFzSet.set("sSRF01zSet", 0, m_sSRF.getInitialPhase());
-	m_sSRFzNeg.set("sSRF01zSet", 0, -m_sSRF.getInitialPhase());
+	m_sSRFzSet.set("sSRFzSet", 0, m_sSRF.getInitialPhase());
+	m_sSRFzNeg.set("sSRFzSet", 0, -m_sSRF.getInitialPhase());
 
+	m_sSRF02zSet.set("sSRF02zSet", 0, m_sSRF02.getInitialPhase());
+	m_sSRF02zNeg.set("sSRF02zSet", 0, -m_sSRF02.getInitialPhase());
 	//. --------------------------------------------------------------------------
 	//. Set the frequency/phase properties of the adc OFFcenter is dealt in gadgetron
 	//. --------------------------------------------------------------------------
@@ -1428,8 +1448,8 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 					ProjectionToMeasure=u_Projections-CurrentProjection;
 					
 					for (int o = 0; o <repetitions; o++){
-						for(int t = 0; t < 2; t++){
-							if(t==0){
+						for(int m_t = 0; m_t < 2; m_t++){
+							if(m_t==0){
 								//m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice]);
 								// ajout inversion pulse
 								if(!m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice])) // lancement de l'inversion
@@ -1464,7 +1484,7 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 
 
 							}
-							if (t == 1)
+							if (m_t == 1)
 								fSBBFillTimeRun(m_dDelayTR);
 						}
 					}
@@ -1630,7 +1650,10 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 		m_sADCsgSet.increasePhase(m_dRFSpoilPhase);
 		m_sADCsgNeg.decreasePhase(m_dRFSpoilPhase);
 		m_sSRFzSet.increasePhase(m_dRFSpoilPhase);
-		m_sSRFzNeg.decreasePhase(m_dRFSpoilPhase);		
+		m_sSRFzNeg.decreasePhase(m_dRFSpoilPhase);
+
+		m_sSRF02zSet.increasePhase(m_dRFSpoilPhase);
+		m_sSRF02zNeg.decreasePhase(m_dRFSpoilPhase);
 	}
 
 	if(u_Mode==2){
@@ -1639,6 +1662,9 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 		//. --------------------------------------------------------------------------
 		m_sSRFzSet.increasePhase (180) ;    /*! EGA-05 !*/
 		m_sSRFzNeg.decreasePhase (180) ;    /*! EGA-05 !*/
+		
+		m_sSRF02zSet.increasePhase (180) ;    /*! EGA-05 !*/
+		m_sSRF02zNeg.decreasePhase (180) ;    /*! EGA-05 !*/
 
 		m_sADCzSet.increasePhase (180) ;    /*! EGA-05 !*/
 		m_sADCzNeg.decreasePhase (180 ) ;    /*! EGA-05 !*/
@@ -1649,7 +1675,11 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 			m_sSRFzSet.increasePhase(-RFMAXPHASEdeg);
 			m_sSRFzNeg.decreasePhase(+RFMAXPHASEdeg);
 			m_sADCzSet.increasePhase (-RFMAXPHASEdeg);   
-			m_sADCzNeg.decreasePhase (+RFMAXPHASEdeg);  
+			m_sADCzNeg.decreasePhase (+RFMAXPHASEdeg);
+
+			m_sSRF02zSet.increasePhase(-RFMAXPHASEdeg);
+			m_sSRF02zNeg.decreasePhase(+RFMAXPHASEdeg);
+			
 		}
 	}	
 
@@ -1667,12 +1697,22 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 	//- *************************************************************************************************************
 
 	 //-----------------------------------------Slice Selection/Excitation--------------------------------------------
-	 fRTEI(lT                       ,&m_sSRFzSet, &m_sSRF,      0,             0,            0,            0,        0);
-	 fRTEI(lT + m_sSRF.getDuration(),&m_sSRFzNeg,       0,      0,             0,            0,            0,        0);
+	 if(m_t == 0){
+		 fRTEI(lT                       ,&m_sSRFzSet, &m_sSRF,      0,             0,            0,            0,        0);
+		 fRTEI(lT + m_sSRF.getDuration(),&m_sSRFzNeg,       0,      0,             0,            0,            0,        0);
+	 }
+	 if(m_t == 1){
+		 fRTEI(lT                       ,&m_sSRF02zSet, &m_sSRF02,      0,             0,            0,            0,        0);
+		 fRTEI(lT + m_sSRF02.getDuration(),&m_sSRF02zNeg,       0,      0,             0,            0,            0,        0);
+	 }
 
 	 //----------------------------------------------Sampling---------------------------------------------------------
-	 lT += m_sSRF.getDuration() + MinDurationBetweenRFandADC + m_alTEFil[0];	
-
+	 if(m_t == 0){
+		lT += m_sSRF.getDuration() + MinDurationBetweenRFandADC + m_alTEFil[0];	
+	 }
+	 if(m_t == 1){
+		lT += m_sSRF02.getDuration() + MinDurationBetweenRFandADC + m_alTEFil[0];	
+	 }
 	 if(l_offset>0){
 		fRTEI(lT                              ,&m_sADCsgSet  ,        0, &m_sSgADC[0]  ,             0,            0,             0,    0);
 		lT += fSDSRoundUpGRT(l_offset*(m_sADC[0].getDwellTime())/(1000));
