@@ -146,6 +146,7 @@ static long dummy=1;
 
  long u_Projections(10); // Define the number of projections required
  long l_offset;
+ int  m_t	;
  selection u_AcqMode;
  selection u_Mode;
  long l_spoilAmp;
@@ -162,7 +163,7 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration;
-double l_version =  4.1;
+double l_version =  4.2;
 double l_currentVersion;
 bool u_bDump;
 // An elegant way to switch debug messages on and off without recompiling the sequence can be
@@ -1448,7 +1449,7 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 					ProjectionToMeasure=u_Projections-CurrentProjection;
 					
 					for (int o = 0; o <repetitions; o++){
-						for(int m_t = 0; m_t < 2; m_t++){
+						for(m_t = 0; m_t < 2; m_t++){
 							if(m_t==0){
 								//m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice]);
 								// ajout inversion pulse
@@ -1686,7 +1687,7 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 	//. ---------------------------------------------------------------------------
 	//. Begin of event block
 	//. ---------------------------------------------------------------------------
-
+	std::cout << "m_t = " << m_t << std::endl;
 	fRTEBInit(m_asSLC[lChronologicSlice].getROT_MATRIX());    /* EGA-07 */
 	 lT=100;
 
