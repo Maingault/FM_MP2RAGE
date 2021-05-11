@@ -43,6 +43,8 @@
 //  Application includes
 //  --------------------------------------------------------------------------
 
+#include "MrServers/MrMeasSrv/PMU/pmuSequence.h";
+
 #include "MrServers/MrImaging/libSBB/SBBTSat.h"
 #include "MrServers/MrImaging/seq/SystemProperties.h"        // Siemens system properties
 #include "MrServers/MrImaging/libSeqSysProp/SysProperties.h"
