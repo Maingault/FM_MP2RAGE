@@ -43,7 +43,8 @@
 //  Application includes
 //  --------------------------------------------------------------------------
 
-#include "MrServers/MrMeasSrv/PMU/pmuSequence.h";
+#include <Z:/n4/pkg/MrServers/MrMeasSrv/PMU/pmuSequence.h>
+#include "MrServers/MrMeasSrv/PMU/PMU.h"
 
 #include "MrServers/MrImaging/libSBB/SBBTSat.h"
 #include "MrServers/MrImaging/seq/SystemProperties.h"        // Siemens system properties
@@ -296,7 +297,6 @@ namespace SEQ_NAMESPACE
 		double getdGradMaxAmpl(void);
 
 
-
 	protected:
 
 
@@ -333,6 +333,8 @@ namespace SEQ_NAMESPACE
 	    long 	   MinDurationBetweenRFandADC                  ;
 		long	   m_MP2Projections							   ;
 		int		   repetitions								   ;
+		bool	   u_bOS									   ;
+		
 		
 		// Gradient Amplitude
 		long m_dGradMaxAmplitude							   ;
@@ -353,6 +355,8 @@ namespace SEQ_NAMESPACE
 
 		// Slice position information (rotation matrices and shifts)
 		sSLICE_POS m_asSLC[K_NO_SLI_MAX]                       ;
+
+
 	  
 			SBBList m_mySBBlist;
 		//. ----------------------------------------------------------
@@ -401,6 +405,9 @@ namespace SEQ_NAMESPACE
 		//. ----------------------------------------------------------
 		//. Instantiate Readout objects
 		//. ----------------------------------------------------------
+		//
+		/*CPmuSequence m_PMU;
+		short *pshValue = new short[1000];*/
 		// every readout event must have an unique identifier
 		sREADOUT               m_sADC[20]                   ;
 
@@ -413,7 +420,7 @@ namespace SEQ_NAMESPACE
 		sFREQ_PHASE            m_sADCsgNeg                  ; //FM_MP2RAGE
 		sFREQ_PHASE            m_sADCsgSet   			   ; 
 
-	
+		
 		//. ----------------------------------------------------------
 		//. Instantiate Sync objects: Osc bit and triggering
 		//. ----------------------------------------------------------
@@ -444,6 +451,7 @@ namespace SEQ_NAMESPACE
 		SeqBuildBlockSpoilGrad m_SpoilSBB                	;
 
 		
+	
 
 		//  --------------------------------------------------------------
 		/// \brief <b> UI class for FM_MP2RAGE
@@ -454,7 +462,7 @@ namespace SEQ_NAMESPACE
 		double      m_dDelayTI1              ;  // delay between RF pulse and start of GRE train 1
 		double      m_dDelayTI2              ;  // delay between GRE train 1 and start of GRE train 2
 		double      m_dDelayTR              ;  // delay between GRE train 2 and total TR
-
+		
 
 		//  ------------------------------------------------------------------
 		//
@@ -508,4 +516,5 @@ namespace SEQ_NAMESPACE
 }
 
 #endif
+
 

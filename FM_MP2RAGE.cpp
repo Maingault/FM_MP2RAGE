@@ -88,7 +88,8 @@
 //  --------------------------------------------------------------------------
 
 #ifdef BUILD_PLATFORM_LINUX// pierre
-static CPmuSequence m_PMU;
+
+short *pshValue = new short[1000];
 #endif
 
 
@@ -105,9 +106,12 @@ SEQIF_DEFINE (SEQ_NAMESPACE::FM_MP2RAGE)
 using namespace SEQ_NAMESPACE;
 using namespace std;
 
+
 //. ----------------------------------------------------------
 //. Instantiate gradietns tables this is durty but who gives a fuck
 //. ----------------------------------------------------------
+
+
 std::vector<float> Gradx( 200000);
 std::vector<float> Grady( 200000);
 std::vector<float> Gradz( 200000);
@@ -163,9 +167,10 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration;
-double l_version =  5.1;
+double l_version =  5.2;
 double l_currentVersion;
 bool u_bDump;
+
 // An elegant way to switch debug messages on and off without recompiling the sequence can be
 //   done by entering the debug mask in the windows registry, e.g. into
 //    \\HKEY_LOCAL_MACHINE\\SOFTWARE\\Siemens\\Numaris4\\Config\\Modality\\Sequence\\DEBUG_USER_SEQUENCE
@@ -213,10 +218,10 @@ FM_MP2RAGE::FM_MP2RAGE()
 ,readMoment										(0)
 
 
-, m_FirstSignal                                 (SEQ::SIGNAL_NONE)
-, m_FirstMethod                                 (SEQ::METHOD_NONE)
-, m_SecondSignal                                (SEQ::SIGNAL_NONE)
-, m_SecondMethod                                (SEQ::METHOD_NONE)
+, m_FirstSignal                                 (SEQ::SIGNAL_RESPIRATION)
+, m_FirstMethod                                 (SEQ::METHOD_ALL)
+//, m_SecondSignal                                (SEQ::SIGNAL_EKG)
+//, m_SecondMethod                                (SEQ::METHOD_TRIGGERING)
 
 , m_sSRF                                        ("FM_MP2RAGE_ex")
 , m_sSRFzSet                                    ("m_sSRFzSet")
@@ -299,6 +304,8 @@ FM_MP2RAGE::~FM_MP2RAGE()
 NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 {
 
+	
+
     //. --------------------------------------------------------
 	//. Declaration of local variables
 	//. --------------------------------------------------------
@@ -344,6 +351,8 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	//. -----------------------------
 	rSeqLim.setBaseResolution            ( 32, 512, SEQ::INC_NORMAL, 256);
 	rSeqLim.setPELines                   (32, 1024, 1, rSeqLim.getBaseResolution().getDef());
+
+	
 
 
 	//. --------------------------------------------------------------------------
@@ -443,7 +452,13 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	//. Set ADC properties
 	//. --------------------------------------------------------------------------------
 	rSeqLim.setBandWidthPerPixel        (    0,        80,     10000,       10,         330);
+	if(u_bOS)
+	{
+		rSeqLim.setReadoutOSFactor(2.0) ;
+	}
+	else{
 	rSeqLim.setReadoutOSFactor(1.0) ;
+	}
 
 	rSeqLim.setExtSrfFilename ("%MEASDAT%/extrf.dat"); // pulse for IRn
 	//. -----------------------------------------------------------------------------
@@ -461,7 +476,8 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	//. --------------------------------------------------------------------------------
 	//. Set Phase properties
 	//. --------------------------------------------------------------------------------
-	rSeqLim.addPhysioMode( SEQ::SIGNAL_CARDIAC, SEQ::METHOD_TRIGGERING);
+	//rSeqLim.addPhysioMode( SEQ::SIGNAL_CARDIAC, SEQ::METHOD_TRIGGERING);
+	rSeqLim.addPhysioMode( SEQ::SIGNAL_RESPIRATION, SEQ::METHOD_TRIGGERING);
 	rSeqLim.setPhases     ( 1, K_NO_SLI_MAX, 1, 1 );     
 
 	//. --------------------------------------------------------------------------------
@@ -503,6 +519,8 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	PARAM("TotalTR","ms", &u_lTotalTR, 100., 10000. , 1., 5000.,"Total relaxtion time");
 
 	PARAM("Echo Train Length","", &u_lETL, 1, 256 , 1, 128,"Calibration square size");
+
+	PARAM("Oversampling", &u_bOS, true ,"Oversampling");
 
 	PARAM("version","",&l_currentVersion, 1., 30.,.1, l_version,"");
 
@@ -582,7 +600,10 @@ NLSStatus FM_MP2RAGE::prepare (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqEx
 	m_lRepetitionsToMeasure = rMrProt.repetitions();         // get number of repetitions
 	// Get information about used trigger
 	rMrProt.physiology().getPhysioMode (m_FirstSignal, m_FirstMethod, m_SecondSignal, m_SecondMethod);
-
+	std::cout<<"Physio Signal ============================================= " << m_FirstSignal << std::endl;
+	std::cout<<"Physio Mode ============================================= " << m_FirstMethod << std::endl;
+	std::cout<<"Physio Signal ============================================= " << m_SecondSignal << std::endl;
+	std::cout<<"Physio Mode ============================================= " << m_SecondMethod << std::endl;
 	// We want to forbid the simultaneous use of Triggering and the 
 	//   "TokTokTok Gradient music" (i.e. the knocking before the measurement)
 	//   for demonstration of Solve Handlers
@@ -1081,6 +1102,9 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
         }
     }
 
+	
+
+
 	//. ----------------------------------------------------------------------------
 	//.  calculation dMeasureTimeUsec
 	//. ----------------------------------------------------------------------------	
@@ -1102,6 +1126,9 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
  //   OnErrorPrintAndReturn(lStatus,"fSBBMeasRepetDelaysPrep");
 
   // double m_dTotalMeasureTimeUsec = dTotalMeasureTimeMsec * 1000.0;
+
+
+	
 
 	double m_dTotalMeasureTimeUsec=0.0;
 	m_dTotalMeasureTimeUsec =  dMeasureTimeUsec * (m_lRepetitionsToMeasure + 1);
@@ -1367,7 +1394,7 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 
 		sprintf(sDateTime,"%.4d%.2d%.2dT%.2d%.2d%.2d",when.tm_year+1900,when.tm_mon+1,when.tm_mday,when.tm_hour,when.tm_min,when.tm_sec);
 		sprintf(ptFilename,"FM_MP2RAGEPMUsignal_%s",sDateTime);
-		m_PMU.startLoggingSignal(SEQ::SIGNAL_EKG,ptFilename);
+		m_PMU.startLoggingSignal(SEQ::SIGNAL_RESPIRATION,ptFilename);
 
 		if (m_FirstSignal!=1){	
 		RTController::getInstance().setRealtimeProcessing(true);
@@ -1512,7 +1539,7 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 	}
 
 	#ifdef BUILD_PLATFORM_LINUX
-	m_PMU.stopLoggingSignal(SEQ::SIGNAL_EKG);
+		m_PMU.stopLoggingSignal(SEQ::SIGNAL_RESPIRATION);
 	#endif
 
 	// Tell sequence unit test that sequence run is finished.
@@ -1596,11 +1623,12 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 			m_sGradSliceRephFM.setAmplitude(0);	
 		 }
 	 }
-
+	
 	#ifdef BUILD_PLATFORM_LINUX	
 	if (m_FirstSignal!=1){
-		lPhysiolTime=m_PMU.getTimeStamp(SEQ::SIGNAL_EKG);
+		lPhysiolTime=m_PMU.getTimeStamp(SEQ::SIGNAL_RESPIRATION);
 		lPhysCount++;
+		
 		bTrigTest=((lPhysiolTime*2500.)> m_lTRMin);	
 	}	
     #endif
