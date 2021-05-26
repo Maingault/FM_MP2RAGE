@@ -88,8 +88,8 @@
 //  --------------------------------------------------------------------------
 
 #ifdef BUILD_PLATFORM_LINUX// pierre
+static CPmuSequence m_PMU;
 
-short *pshValue = new short[1000];
 #endif
 
 
@@ -167,7 +167,7 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration;
-double l_version =  5.2;
+double l_version =  6.1;
 double l_currentVersion;
 bool u_bDump;
 
@@ -477,7 +477,7 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	//. Set Phase properties
 	//. --------------------------------------------------------------------------------
 	//rSeqLim.addPhysioMode( SEQ::SIGNAL_CARDIAC, SEQ::METHOD_TRIGGERING);
-	rSeqLim.addPhysioMode( SEQ::SIGNAL_RESPIRATION, SEQ::METHOD_TRIGGERING);
+	rSeqLim.addPhysioMode( SEQ::SIGNAL_RESPIRATION, SEQ::METHOD_ALL);
 	rSeqLim.setPhases     ( 1, K_NO_SLI_MAX, 1, 1 );     
 
 	//. --------------------------------------------------------------------------------
@@ -610,7 +610,7 @@ NLSStatus FM_MP2RAGE::prepare (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqEx
 	// So this combination must fail and a solve handler 
 	//  "fBSolveFunnyModeConflict1" is called if
 	//  the conflict was induced by switching "Introduction" on.
-	if ( (rMrProt.intro()) && (m_FirstMethod == SEQ::METHOD_TRIGGERING) )
+	if ( (rMrProt.intro()) && (m_FirstMethod == SEQ::METHOD_ALL) )
 	return SEQU_ERROR ;
 
 
@@ -1092,7 +1092,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. Set m_lTrigHaltDuration1 and m_lTrigHaltDuration2
 	//. ----------------------------------------------------------------------------	
   m_lTrigHaltDuration1 = m_lTrigHaltDuration2 = 0;
-    if (m_FirstMethod == SEQ::METHOD_TRIGGERING)
+    if (m_FirstMethod == SEQ::METHOD_ALL)
     {
         DEBUG_BY_REGISTRY( 128,"---- Trigger 1 is on, Method " << m_FirstMethod );
         m_lTrigHaltDuration1 =  std::max<long>((long)(rMrProt.physiology().triggerDelay(m_FirstSignal)), (long)(m_sTriggerBit1.getDuration()) + 10);
@@ -1136,7 +1136,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	
 	if(u_bDoCalibration)
 	m_dTotalMeasureTimeUsec += (double) m_SBBCALIB.getDurationPerRequest(); 
-    if ( (rMrProt.getsPhysioImaging().getlMethod1() == SEQ::METHOD_TRIGGERING) &&
+    if ( (rMrProt.getsPhysioImaging().getlMethod1() == SEQ::METHOD_ALL) &&
          (rMrProt.physiology().triggerPulses (rMrProt.getsPhysioImaging().getlSignal1()) > 1)       
        )
     {
@@ -1391,10 +1391,11 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 
 		char ptFilename[255]={0};
 		char sDateTime[255]={0};
-
+		
 		sprintf(sDateTime,"%.4d%.2d%.2dT%.2d%.2d%.2d",when.tm_year+1900,when.tm_mon+1,when.tm_mday,when.tm_hour,when.tm_min,when.tm_sec);
 		sprintf(ptFilename,"FM_MP2RAGEPMUsignal_%s",sDateTime);
 		m_PMU.startLoggingSignal(SEQ::SIGNAL_RESPIRATION,ptFilename);
+		
 
 		if (m_FirstSignal!=1){	
 		RTController::getInstance().setRealtimeProcessing(true);
@@ -1454,7 +1455,7 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 			while( CurrentProjection<u_Projections){
 
 					//Here comes the physiological triggering 					
-					if ( m_FirstMethod == SEQ::METHOD_TRIGGERING ) 
+					if ( m_FirstMethod == SEQ::METHOD_ALL ) 
 					{
 						OnErrorPrintAndReturn( lStatus = fSBBECGFillTimeRun (&m_sTriggerBit1, m_lTrigHaltDuration1 ),"fSBBECGFillTimeRun");
 						if ( m_SecondMethod == SEQ::METHOD_TRIGGERING ) 
@@ -1548,7 +1549,7 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 	return(lStatus);
 }
 
-
+SEQ::METHO
 
 //   --------------------------------------------------------------------------
 //
