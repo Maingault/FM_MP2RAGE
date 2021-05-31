@@ -167,7 +167,7 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration;
-double l_version =  6.1;
+double l_version =  7.1;
 double l_currentVersion;
 bool u_bDump;
 
@@ -219,7 +219,7 @@ FM_MP2RAGE::FM_MP2RAGE()
 
 
 , m_FirstSignal                                 (SEQ::SIGNAL_RESPIRATION)
-, m_FirstMethod                                 (SEQ::METHOD_ALL)
+, m_FirstMethod                                 (SEQ::METHOD_NONE)
 //, m_SecondSignal                                (SEQ::SIGNAL_EKG)
 //, m_SecondMethod                                (SEQ::METHOD_TRIGGERING)
 
@@ -454,10 +454,10 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	rSeqLim.setBandWidthPerPixel        (    0,        80,     10000,       10,         330);
 	if(u_bOS)
 	{
-		rSeqLim.setReadoutOSFactor(2.0) ;
+		rSeqLim.setReadoutOSFactor(1) ;
 	}
 	else{
-	rSeqLim.setReadoutOSFactor(1.0) ;
+		rSeqLim.setReadoutOSFactor(0) ;
 	}
 
 	rSeqLim.setExtSrfFilename ("%MEASDAT%/extrf.dat"); // pulse for IRn
@@ -477,7 +477,7 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	//. Set Phase properties
 	//. --------------------------------------------------------------------------------
 	//rSeqLim.addPhysioMode( SEQ::SIGNAL_CARDIAC, SEQ::METHOD_TRIGGERING);
-	rSeqLim.addPhysioMode( SEQ::SIGNAL_RESPIRATION, SEQ::METHOD_ALL);
+	rSeqLim.addPhysioMode( SEQ::SIGNAL_RESPIRATION, SEQ::METHOD_TRIGGERING);
 	rSeqLim.setPhases     ( 1, K_NO_SLI_MAX, 1, 1 );     
 
 	//. --------------------------------------------------------------------------------
@@ -610,7 +610,7 @@ NLSStatus FM_MP2RAGE::prepare (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqEx
 	// So this combination must fail and a solve handler 
 	//  "fBSolveFunnyModeConflict1" is called if
 	//  the conflict was induced by switching "Introduction" on.
-	if ( (rMrProt.intro()) && (m_FirstMethod == SEQ::METHOD_ALL) )
+	if ( (rMrProt.intro()) && (m_FirstMethod == SEQ::METHOD_NONE) )
 	return SEQU_ERROR ;
 
 
@@ -694,6 +694,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 
 	//double dReadAsymmetry = 0;// 100% asymmetric
 	long lColumns = (long) ((rMrProt.kSpace().baseResolution())); // + l_offset;
+	//std::cout << "=--=--=--= OS FACTOR = "<<rSeqLim.getReadoutOSFactor()[0] << std::endl;
 
 	m_sADC[0].prep(lColumns, static_cast<long>(rMrProt.rxSpec().effDwellTime( rSeqLim.getReadoutOSFactor() )[0] ));
 
@@ -1092,7 +1093,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. Set m_lTrigHaltDuration1 and m_lTrigHaltDuration2
 	//. ----------------------------------------------------------------------------	
   m_lTrigHaltDuration1 = m_lTrigHaltDuration2 = 0;
-    if (m_FirstMethod == SEQ::METHOD_ALL)
+    if (m_FirstMethod == SEQ::METHOD_NONE)
     {
         DEBUG_BY_REGISTRY( 128,"---- Trigger 1 is on, Method " << m_FirstMethod );
         m_lTrigHaltDuration1 =  std::max<long>((long)(rMrProt.physiology().triggerDelay(m_FirstSignal)), (long)(m_sTriggerBit1.getDuration()) + 10);
@@ -1136,7 +1137,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	
 	if(u_bDoCalibration)
 	m_dTotalMeasureTimeUsec += (double) m_SBBCALIB.getDurationPerRequest(); 
-    if ( (rMrProt.getsPhysioImaging().getlMethod1() == SEQ::METHOD_ALL) &&
+    if ( (rMrProt.getsPhysioImaging().getlMethod1() == SEQ::METHOD_NONE) &&
          (rMrProt.physiology().triggerPulses (rMrProt.getsPhysioImaging().getlSignal1()) > 1)       
        )
     {
@@ -1397,11 +1398,11 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 		m_PMU.startLoggingSignal(SEQ::SIGNAL_RESPIRATION,ptFilename);
 		
 
-		if (m_FirstSignal!=1){	
+			
 		RTController::getInstance().setRealtimeProcessing(true);
 		/// Calculate one kernel call ahead
 		RTController::getInstance().setRealtimeProcessingMargin(  1.e-6*m_lTRMin);
-		}
+		
 	#endif
 
 
@@ -1455,7 +1456,7 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 			while( CurrentProjection<u_Projections){
 
 					//Here comes the physiological triggering 					
-					if ( m_FirstMethod == SEQ::METHOD_ALL ) 
+					if ( m_FirstMethod == SEQ::METHOD_NONE ) 
 					{
 						OnErrorPrintAndReturn( lStatus = fSBBECGFillTimeRun (&m_sTriggerBit1, m_lTrigHaltDuration1 ),"fSBBECGFillTimeRun");
 						if ( m_SecondMethod == SEQ::METHOD_TRIGGERING ) 
@@ -1549,7 +1550,7 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 	return(lStatus);
 }
 
-SEQ::METHO
+
 
 //   --------------------------------------------------------------------------
 //
@@ -1626,12 +1627,12 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 	 }
 	
 	#ifdef BUILD_PLATFORM_LINUX	
-	if (m_FirstSignal!=1){
+
 		lPhysiolTime=m_PMU.getTimeStamp(SEQ::SIGNAL_RESPIRATION);
 		lPhysCount++;
 		
 		bTrigTest=((lPhysiolTime*2500.)> m_lTRMin);	
-	}	
+	
     #endif
 
 	//. --------------------------------------------------------------------------
