@@ -333,7 +333,7 @@ namespace SEQ_NAMESPACE
 	    long 	   MinDurationBetweenRFandADC                  ;
 		long	   m_MP2Projections							   ;
 		int		   repetitions								   ;
-		bool	   u_bOS									   ;
+		//bool	   u_bOS									   ;
 		
 		
 		// Gradient Amplitude
@@ -413,6 +413,9 @@ namespace SEQ_NAMESPACE
 
 		sREADOUT			   m_sSgADC[20]				    ;
 
+		sREADOUT			   m_sDAADC[20]				    ;
+		sREADOUT			   m_sDBADC[20]				    ;
+		sREADOUT			   m_sDCADC[20]				    ;
 		// define an event that undoes the receiver phase
 		sFREQ_PHASE            m_sADCzNeg                  ;
 		sFREQ_PHASE            m_sADCzSet   			   ;   
@@ -420,7 +423,14 @@ namespace SEQ_NAMESPACE
 		sFREQ_PHASE            m_sADCsgNeg                  ; //FM_MP2RAGE
 		sFREQ_PHASE            m_sADCsgSet   			   ; 
 
-		
+		sFREQ_PHASE            m_sDAADCNeg                  ; //FM_MP2RAGE
+		sFREQ_PHASE            m_sDAADCSet   			   ; 
+
+		sFREQ_PHASE            m_sDBADCNeg                  ; //FM_MP2RAGE
+		sFREQ_PHASE            m_sDBADCSet   			   ; 
+
+		sFREQ_PHASE            m_sDCADCNeg                  ; //FM_MP2RAGE
+		sFREQ_PHASE            m_sDCADCSet   			   ; 
 		//. ----------------------------------------------------------
 		//. Instantiate Sync objects: Osc bit and triggering
 		//. ----------------------------------------------------------
