@@ -175,7 +175,7 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration = false;
-double l_version =  18.1;
+double l_version =  18.4;
 double l_currentVersion;
 bool u_bDump;
 // An elegant way to switch debug messages on and off without recompiling the sequence can be
@@ -767,7 +767,8 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 
 	//m_timeBwPulses	= 1150 - 60;
 	m_timeBwPulses = (1000000)/(2*12.8*u_lPPM);
-	
+	std::cout << "PPM :============================= " << u_lPPM << std::endl;
+	std::cout << "to :============================= " << m_timeBwPulses << std::endl;
 	m_timeBwPulses = m_timeBwPulses - 60;
 	//m_timeBwPulses = 1220 - 60;
 	//vector<int> coeff(4);
@@ -1910,7 +1911,7 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 	//. Set the frequency/phase properties of the RF pulses testsrf
 	//. --------------------------------------------------------------------------
 	//if (u_lPulses==1){
-	// NCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+	// FM correction angle pour la graisse
 	//for (int i=0;i<u_lPulses;i++){
 	//	//m_sRFzSetArray.set("sSRFzSet", 0,m_sRFArray[i].sRFTab.getInitialPhase());
 	//	m_sRFzSetArray[i].sSRFzSetTab.set("sSRFzSet", 0,m_sRFArray[i].sRFTab.getInitialPhase());
@@ -1919,9 +1920,8 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 	//	m_sRFzWatSetArray[i].sSRFzWatSetTab.set("sSRFzSet", 0,m_sRFWatArray[i].sRFWatTab.getInitialPhase());
 	//	m_sRFzWatNegArray[i].sSRFzWatNegTab.set("sSRFzNeg", 0,-m_sRFWatArray[i].sRFWatTab.getInitialPhase());
 	//}
-		
-	// NC END COMMENT XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-	m_sSRFzSet.set("sSRFzSet", 0, m_sSRF.getInitialPhase());
+	// FM fin commentaire
+		m_sSRFzSet.set("sSRFzSet", 0, m_sSRF.getInitialPhase());
 		m_sSRFzNeg.set("sSRFzSet", 0, -m_sSRF.getInitialPhase());
 
 		m_sSRF02zSet.set("sSRF02zSet", 0, m_sSRF02.getInitialPhase());
