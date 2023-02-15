@@ -175,7 +175,7 @@ long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
 bool u_bDoCalibration = false;
-double l_version =  18.4;
+double l_version =  18.1;
 double l_currentVersion;
 bool u_bDump;
 // An elegant way to switch debug messages on and off without recompiling the sequence can be
@@ -1912,14 +1912,14 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 	//. --------------------------------------------------------------------------
 	//if (u_lPulses==1){
 	// FM correction angle pour la graisse
-	//for (int i=0;i<u_lPulses;i++){
-	//	//m_sRFzSetArray.set("sSRFzSet", 0,m_sRFArray[i].sRFTab.getInitialPhase());
-	//	m_sRFzSetArray[i].sSRFzSetTab.set("sSRFzSet", 0,m_sRFArray[i].sRFTab.getInitialPhase());
-	//	m_sRFzNegArray[i].sSRFzNegTab.set("sSRFzNeg", 0,-m_sRFArray[i].sRFTab.getInitialPhase());
-	//	
-	//	m_sRFzWatSetArray[i].sSRFzWatSetTab.set("sSRFzSet", 0,m_sRFWatArray[i].sRFWatTab.getInitialPhase());
-	//	m_sRFzWatNegArray[i].sSRFzWatNegTab.set("sSRFzNeg", 0,-m_sRFWatArray[i].sRFWatTab.getInitialPhase());
-	//}
+	for (int i=0;i<u_lPulses;i++){
+		//m_sRFzSetArray.set("sSRFzSet", 0,m_sRFArray[i].sRFTab.getInitialPhase());
+		m_sRFzSetArray[i].sSRFzSetTab.set("SetFat", 0,m_sRFArray[i].sRFTab.getInitialPhase());
+		m_sRFzNegArray[i].sSRFzNegTab.set("NegFat", 0,-m_sRFArray[i].sRFTab.getInitialPhase());
+		
+		m_sRFzWatSetArray[i].sSRFzWatSetTab.set("SetWat", 0,m_sRFWatArray[i].sRFWatTab.getInitialPhase());
+		m_sRFzWatNegArray[i].sSRFzWatNegTab.set("NegWat", 0,-m_sRFWatArray[i].sRFWatTab.getInitialPhase());
+	}
 	// FM fin commentaire
 		m_sSRFzSet.set("sSRFzSet", 0, m_sSRF.getInitialPhase());
 		m_sSRFzNeg.set("sSRFzSet", 0, -m_sSRF.getInitialPhase());
