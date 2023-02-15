@@ -329,6 +329,12 @@ namespace SEQ_NAMESPACE
 		long	   m_lTEMin									   ;
 	    long 	   MinDurationBetweenADCandRF                  ;
 	    long 	   MinDurationBetweenRFandADC                  ;
+		long	   m_MP2Projections							   ;
+		int		   repetitions								   ;
+		int		   m_timeBwPulses							   ;
+		long	   u_lFWSEopt							       ;
+		int		 coefBin                                       ;
+
 		// Gradient Amplitude
 		long m_dGradMaxAmplitude							   ;
 		long GradientAmplitudeFOV							   ;
@@ -354,15 +360,92 @@ namespace SEQ_NAMESPACE
 		//. Instantiate RF Pulse objects
 		//. ----------------------------------------------------------
 
+		struct dummy_srf_pulse
+		{
+			sRF_PULSE_RECT sRFTab;
+		};
+		dummy_srf_pulse m_sRFTab;
+		std::vector<dummy_srf_pulse> m_sRFArray;
+
+		struct dummy_srf_pulse_wat
+		{
+			sRF_PULSE_RECT sRFWatTab;
+		};
+		dummy_srf_pulse_wat m_sRFWatTab;
+		std::vector<dummy_srf_pulse_wat> m_sRFWatArray;
+
+	
 		// every rf-pulse must (!) have an unique name
 		//  (e.g. fl_Flash_ex = flash template excitation)"
 		//  maximium of 12 chars
 		sRF_PULSE_RECT           m_sSRF                   ;
+		
 		// define an event that sets the transmitter phase
 		sFREQ_PHASE              m_sSRFzSet               ;
+
+		struct dummy_srf_phase
+		{
+			sFREQ_PHASE sSRFzSetTab;
+		};
+		dummy_srf_phase m_sSRFzSetTab;
+		std::vector<dummy_srf_phase> m_sRFzSetArray;
+
+		struct dummy_srf_phase_wat
+		{
+			sFREQ_PHASE sSRFzWatSetTab;
+		};
+		dummy_srf_phase_wat m_sSRFzWatSetTab;
+		std::vector<dummy_srf_phase_wat> m_sRFzWatSetArray;
+
+
+
 		// define an event that resets the transmitter phase
 		sFREQ_PHASE              m_sSRFzNeg               ;
 
+		struct dummy_srf_phaseNeg
+		{
+			sFREQ_PHASE sSRFzNegTab;
+		};
+		dummy_srf_phaseNeg m_sSRFzNegTab;
+		std::vector<dummy_srf_phaseNeg> m_sRFzNegArray;
+
+		struct dummy_srf_phaseNeg_wat
+		{
+			sFREQ_PHASE sSRFzWatNegTab;
+		};
+		dummy_srf_phaseNeg_wat m_sSRFzWatNegTab;
+		std::vector<dummy_srf_phaseNeg_wat> m_sRFzWatNegArray;
+
+		sRF_PULSE_RECT           m_sSRF02                   ;
+		// define an event that sets the transmitter phase
+		sFREQ_PHASE              m_sSRF02zSet               ;
+		// define an event that resets the transmitter phase
+		sFREQ_PHASE              m_sSRF02zNeg               ;
+
+		// Fat suppr pulse
+
+		//Pulse 1 and 4
+		sRF_PULSE_RECT           m_sSRF_014                   ;
+		// define an event that sets the transmitter phase
+		sFREQ_PHASE              m_sSRF_014zSet               ;
+		// define an event that resets the transmitter phase
+		sFREQ_PHASE              m_sSRF_014zNeg               ;
+
+		//Pulse 2
+		sRF_PULSE_RECT           m_sSRF_02                   ;
+		// define an event that sets the transmitter phase
+		sFREQ_PHASE              m_sSRF_02zSet               ;
+		// define an event that resets the transmitter phase
+		sFREQ_PHASE              m_sSRF_02zNeg               ;
+
+		//Pulse 3
+		sRF_PULSE_RECT           m_sSRF_03                   ;
+		// define an event that sets the transmitter phase
+		sFREQ_PHASE              m_sSRF_03zSet               ;
+		// define an event that resets the transmitter phase
+		sFREQ_PHASE              m_sSRF_03zNeg               ;
+
+		sRF_PULSE_RECT           m_sSRF_Loop                 ;
 		
 		//. ----------------------------------------------------------
 		//. Instantiate Gradient Pulse objects
@@ -373,6 +456,12 @@ namespace SEQ_NAMESPACE
 		sGRAD_PULSE m_sGradReadDeph							;
 		sGRAD_PULSE m_sGradPhaseDeph						;
 		sGRAD_PULSE m_sGradSliceDeph						;
+		sGRAD_PULSE m_sGradReadRef								;
+		sGRAD_PULSE m_sGradSliceRef							;
+		sGRAD_PULSE m_sGradPhaseRef							;
+		sGRAD_PULSE m_sGradReadDephRef							;
+		sGRAD_PULSE m_sGradPhaseDephRef						;
+		sGRAD_PULSE m_sGradSliceDephRef						;
         sGRAD_PULSE m_sGSpoil								;
 
 		//FMUTE
@@ -385,6 +474,9 @@ namespace SEQ_NAMESPACE
 		sGRAD_PULSE m_sGradReadReph							;
 		sGRAD_PULSE m_sGradPhaseReph						;
 		sGRAD_PULSE m_sGradSliceReph						;
+		sGRAD_PULSE m_sGradReadRephRef							;
+		sGRAD_PULSE m_sGradPhaseRephRef						;
+		sGRAD_PULSE m_sGradSliceRephRef						;
 		sGRAD_PULSE m_sGSpoilFM								;
 
 		SBBCALIB m_SBBCALIB;
@@ -414,6 +506,10 @@ namespace SEQ_NAMESPACE
 		// The SBBList connects all Sequence Building Blocks (SBBs). It therefore knows
 		//  all prepulses and can pass this information e.g. to the RSatSBBs
 		SBBList                m_mySBBList;
+	
+		// Ajout inversion pulse
+		SBBList           m_IRnsSBB;
+		SeqBuildBlockIRns m_IRns;
 
 		// SeqBuildBlockTokTokTok: Gradient knocking before measurement start (intro)
 		SeqBuildBlockTokTokTok m_TokTokSBB              	;
