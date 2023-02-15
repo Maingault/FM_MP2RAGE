@@ -174,8 +174,10 @@ long lPhysiolTime;
 long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
+
 bool u_bDoCalibration = false;
 double l_version =  18.1;
+
 double l_currentVersion;
 bool u_bDump;
 // An elegant way to switch debug messages on and off without recompiling the sequence can be
@@ -288,6 +290,7 @@ FM_MP2RAGE::FM_MP2RAGE()
 
 , m_IRnsSBB()  // inversion pulse
 , m_IRns(&m_IRnsSBB)// inversion pulse
+
 
 , m_TokTokSBB                                   (&m_mySBBList)
 , m_CSatFatSBB                                  (&m_mySBBList)
@@ -739,12 +742,56 @@ NLSStatus FM_MP2RAGE::prepare (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqEx
 	//. ---------------------------------------------------------------------------
 	//. Define gradient rise times and strengths
 	//. ---------------------------------------------------------------------------
+	double dReallySmallestRiseTime =  5.;
+    double dReallyBiggestAmplitude = 28.;
+
+        // These arrays take the MaxAmplitude and MinRiseTime values for the Sequence Building Blocks (SBB)
+        //  Order: FAST/NORMAL/WHISPER
+                                    // Default factor is 1.25 on GRAD_FAST, 1.0 on GRAD_NORMAL and GRAD_WHISPER
+    double  adMinRiseTimes[3] =  {   std::max( 1.25 * SysProperties::getGradMinRiseTime(SEQ::GRAD_FAST   ),dReallySmallestRiseTime),
+                                     std::max( 1.0 * SysProperties::getGradMinRiseTime(SEQ::GRAD_NORMAL ),dReallySmallestRiseTime),
+                                     std::max( 0.8 * SysProperties::getGradMinRiseTime(SEQ::GRAD_WHISPER),dReallySmallestRiseTime)
+                                 };
+
+                                    // Default factor is 1.0
+    double  adMaxGradAmplitudes[3] =  {  std::min( 1.0 * SysProperties::getGradMaxAmpl(SEQ::GRAD_FAST   ),dReallyBiggestAmplitude),
+                                         std::min( 0.8 * SysProperties::getGradMaxAmpl(SEQ::GRAD_NORMAL ),dReallyBiggestAmplitude),
+                                         std::min( 0.65 * SysProperties::getGradMaxAmpl(SEQ::GRAD_WHISPER),dReallyBiggestAmplitude)
+                                 };
+
 	m_dMinRiseTime = 1.25 * SysProperties::getGradMinRiseTime(rMrProt.gradSpec().mode());
 	m_dGradMaxAmpl = 0.9 * SysProperties::getGradMaxAmpl(rMrProt.gradSpec().mode());
 
 
 if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMinRiseTime();
 
+	
+    //. ----------------------------------------------------------------------------
+    //. Preparation of non selective  Inversion Pulse
+    //. ----------------------------------------------------------------------------
+	
+	    // Tell, how many Inversion pulses would be used during the measurement
+        //  (needed for calculation of energy and time)
+    m_IRns.setRequestsPerMeasurement (1);
+        // The spoiler gradient inside the SBB can be configured / limited
+        //  for the selected gradient mode
+        // An array with the maximum amplitudes for FAST/NORMAL/WHISPER is handed over
+        // If not set, a default is used.
+    m_IRns.setMaxMagnitudes(adMaxGradAmplitudes);
+        // ditto for the minimum rise time
+    m_IRns.setMinRiseTimes (adMinRiseTimes);
+
+
+        // Tell the SBB to use the longer rise times in case of a GSWD binary search
+        // NOTE: This method has to be called for every SeqBuildBlock you use.
+    m_IRns.setGSWDGradientPerformance(rMrProt, rSeqLim);
+        // prepare the saturation SBB
+	if(! m_IRns.IRprep(rMrProt, rSeqLim, rSeqExpo))
+	{
+		TRACE_PUT1_NLS(TC_INFO, TF_SEQ, "%s: m_IRns.prep failed.",ptModule,m_IRns.getNLSStatus());
+		return m_IRns.getNLSStatus();
+	}
+	
 
 	//. ---------------------------------------------------------------------------
 	//. Prepare the RF pulse objects (Copied from UTE WIP)
@@ -1405,6 +1452,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	return m_TokTokSBB.getNLSStatus();
 
 	//. ----------------------------------------------------------------------------
+
     //. Preparation of non selective  Inversion Pulse
     //. ----------------------------------------------------------------------------
 	
@@ -1429,6 +1477,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 		TRACE_PUT1_NLS(TC_INFO, TF_SEQ, "%s: m_IRns.prep failed.",ptModule,m_IRns.getNLSStatus());
 		return m_IRns.getNLSStatus();
 	}
+
 
 	//. ----------------------------------------------------------------------------
 	//. Calculate TEFill-times and check, whether timing can be realized
