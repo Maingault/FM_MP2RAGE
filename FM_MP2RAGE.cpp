@@ -108,6 +108,13 @@ using namespace std;
 //. ----------------------------------------------------------
 //. Instantiate gradietns tables this is durty but who gives a fuck
 //. ----------------------------------------------------------
+std::vector<float> Gradrefx( 200000);
+std::vector<float> Gradrefy( 200000);
+std::vector<float> Gradrefz( 200000);
+std::vector<float> GradrefxDeph( 200000);
+std::vector<float> GradrefyDeph( 200000);
+std::vector<float> GradrefzDeph( 200000);
+
 std::vector<float> Gradx( 200000);
 std::vector<float> Grady( 200000);
 std::vector<float> Gradz( 200000);
@@ -140,9 +147,18 @@ static long dummy=1;
  // MP2RAGE variables
  long u_lTI1;
  long u_lTI2;
+ long u_lTotalTR;
 
- long u_Projections(10); // Define the number of projections
+ long u_lETL;					  //size of the Echo Train Length
+ long u_lRes = 30;
+ long u_lPPM = 3.4;
+ selection u_lOrientation1;
+ selection u_lOrientation2;
+ selection u_lPulses;
+ selection u_lFWSE;
+ long u_Projections(10); // Define the number of projections required
  long l_offset;
+ int  m_t	;
  selection u_AcqMode;
  selection u_Mode;
  long l_spoilAmp;
@@ -158,8 +174,8 @@ long lPhysiolTime;
 long lDumcount=0;
 int ProjectionToMeasure= 0;
 int MaxProjectionInPhase=0;
-bool u_bDoCalibration;
-double l_version =  1.2;
+bool u_bDoCalibration = false;
+double l_version =  18.1;
 double l_currentVersion;
 bool u_bDump;
 // An elegant way to switch debug messages on and off without recompiling the sequence can be
@@ -179,7 +195,6 @@ bool u_bDump;
 
 // NOTE: Setting the corresonding registry entry will cause ALL of your sequences using this key for debugging
 //      to generate verbose output, which may decrease performance. So be aware of this global effect.
-
 #define TRUE_IF_DETAILED_DEBUG ( lDebugMask > 63 )
 long lDebugMask = getMaskFromRegistry ("DEBUG_USER_SEQUENCE") ; // read the debug value in a global
 //  variable, since function call is slow
@@ -217,13 +232,39 @@ FM_MP2RAGE::FM_MP2RAGE()
 , m_sSRF                                        ("FM_MP2RAGE_ex")
 , m_sSRFzSet                                    ("m_sSRFzSet")
 , m_sSRFzNeg                                    ("m_sSRFzNeg")
+
+, m_sSRF02                                        ("FM_MP2RAGE_ex2")
+, m_sSRF02zSet                                    ("m_sSRF02zSet")
+, m_sSRF02zNeg                                    ("m_sSRF02zNeg")
+
+//Fat sup
+, m_sSRF_014                                        ("FM_MP2RAGE_ex14")
+, m_sSRF_014zSet                                    ("m_sSRF_014zSet")
+, m_sSRF_014zNeg                                    ("m_sSRF_014zNeg")
+
+, m_sSRF_02                                        ("FM_MP2RAGE_ex02")
+, m_sSRF_02zSet                                    ("m_sSRF_02zSet")
+, m_sSRF_02zNeg                                    ("m_sSRF_02zNeg")
+
+, m_sSRF_03                                        ("FM_MP2RAGE_ex03")
+, m_sSRF_03zSet                                    ("m_sSRF_03zSet")
+, m_sSRF_03zNeg                                    ("m_sSRF_03zNeg")
+
+//, sRFTab                                        ("FM_MP2RAGE_exTab")
+
 , m_sGradRead                                   ("m_sGradRead")        
 , m_sGradSlice                                  ("m_sGradSlice")
 , m_sGradPhase                                  ("m_sGradPhase") 
+, m_sGradReadRef                                   ("m_sGradReadRef")        
+, m_sGradSliceRef                                  ("m_sGradSliceRef")
+, m_sGradPhaseRef                                  ("m_sGradPhaseRef") 
 , m_sGSpoil                                     ("m_sGSpoil")
 , m_sGradReadDeph                               ("sGradReadDeph")         
 , m_sGradSliceDeph                              ("sGradSliceDeph")
 , m_sGradPhaseDeph                              ("sGradPhaseDeph") 
+, m_sGradReadDephRef                               ("sGradReadDephRef")         
+, m_sGradSliceDephRef                              ("sGradSliceDephRef")
+, m_sGradPhaseDephRef                              ("sGradPhaseDephRef") 
 , m_sGradReadDephFM                             ("sGradReadDephFM")
 , m_sGradPhaseDephFM                            ("sGradPhaseDephFM")
 , m_sGradSliceDephFM                            ("sGradSliceDephFM")
@@ -235,6 +276,9 @@ FM_MP2RAGE::FM_MP2RAGE()
 , m_sGradReadReph								("m_sGradReadReph")
 , m_sGradPhaseReph								("m_sGradPhaseReph")
 , m_sGradSliceReph								("m_sGradSliceReph")
+//, m_sGradReadRephRef								("m_sGradReadRephRef")
+//, m_sGradPhaseRephRef								("m_sGradPhaseRephRef")
+//, m_sGradSliceRephRef								("m_sGradSliceRephRef")
 , m_sGSpoilFM									("m_sGSpoilFM")
 , m_sADCsgSet                                   ("m_sADCsgSet")
 , m_sADCsgNeg                                   ("m_sADCsgNeg")
@@ -244,7 +288,6 @@ FM_MP2RAGE::FM_MP2RAGE()
 
 , m_IRnsSBB()  // inversion pulse
 , m_IRns(&m_IRnsSBB)// inversion pulse
-
 
 , m_TokTokSBB                                   (&m_mySBBList)
 , m_CSatFatSBB                                  (&m_mySBBList)
@@ -417,15 +460,69 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	lMax = 2000000000;
 	rSeqLim.setRepetitionsDelayTime         (        0,     lMax,     lInc,        0)  ;
 	rSeqLim.setIntro                       (SEQ::OFF);
-    rSeqLim.getRadialViews().set("trufi_cv::setRadialViews", 1, 200000, 1, 64, true, 0, false);
+    rSeqLim.getRadialViews().set("trufi_cv::setRadialViews", 1, 200000, 1, 256, true, 0, false);
 
 
 	//. --------------------------------------------------------------------------------------
 	//. Define properties of excitation
 	//. --------------------------------------------------------------------------------------
-	rSeqLim.setFlipAngle                        (     5.000,  180.000,    1.000,   15.000)  ;
+	//rSeqLim.setFlipAngle                        (     5.000,  180.000,    1.000,   15.000)  ;
+	for (unsigned lContrast = 0; lContrast < 2; lContrast++)
+	{
+		rSeqLim.setFlipAngleArray            (               lContrast,     1.000,  90.000,    1.000,   7.000) ;
+	}
 	rSeqLim.setRFSpoiling (SEQ::ON, SEQ::OFF) ;
 
+	char xNamesRF[10];
+	for (int i=0;i<6;i++){
+		sprintf(xNamesRF,"RFFat_%d",i+1);
+		m_sRFArray.push_back(m_sRFTab);
+		m_sRFArray[i].sRFTab.setIdent(xNamesRF);
+	}
+
+	char xNamesRFWat[10];
+	for (int i=0;i<6;i++){
+		sprintf(xNamesRFWat,"RFWat_%d",i+1);
+		m_sRFWatArray.push_back(m_sRFWatTab);
+		m_sRFWatArray[i].sRFWatTab.setIdent(xNamesRFWat);
+	}
+
+	char xNamesRFzSet[10];
+	for (int i=0;i<6;i++){
+		sprintf(xNamesRFzSet,"SetFat_%d",i+1);
+		m_sRFzSetArray.push_back(m_sSRFzSetTab);
+		m_sRFzSetArray[i].sSRFzSetTab.setIdent(xNamesRFzSet);
+	}
+
+	char xNamesRFzWatSet[10];
+	for (int i=0;i<6;i++){
+		sprintf(xNamesRFzWatSet,"SetWat_%d",i+1);
+		m_sRFzWatSetArray.push_back(m_sSRFzWatSetTab);
+		m_sRFzWatSetArray[i].sSRFzWatSetTab.setIdent(xNamesRFzWatSet);
+	}
+
+	char xNamesRFzNeg[10];
+	for (int i=0;i<6;i++){
+		sprintf(xNamesRFzNeg,"NegFat_%d",i+1);
+		m_sRFzNegArray.push_back(m_sSRFzNegTab);
+		m_sRFzNegArray[i].sSRFzNegTab.setIdent(xNamesRFzNeg);
+	}
+
+	char xNamesRFzWatNeg[10];
+	for (int i=0;i<6;i++){
+		sprintf(xNamesRFzWatNeg,"NegWat_%d",i+1);
+		m_sRFzWatNegArray.push_back(m_sSRFzWatNegTab);
+		m_sRFzWatNegArray[i].sSRFzWatNegTab.setIdent(xNamesRFzWatNeg);
+	}
+
+	//. --------------------------------------------------------------------------------------
+	//. Fat Saturation
+	//. --------------------------------------------------------------------------------------
+
+	rSeqLim.setFatSuppression               (SEQ::FAT_SUPPRESSION_OFF, SEQ::FAT_SATURATION); // alt: FAT_SATURATION_QUICK, SEQ::WATER_EXCITATION
+    rSeqLim.setWaterSuppression             (SEQ::WATER_SUPPRESSION_OFF); // alt: WATER_SATURATION,FAT_EXCITATION,WATER_SATURATION_QUICK );
+    m_CSatFatSBB.setIdent("FLFS");
+    m_CSatWatSBB.setIdent("FLWS");
 
 	//. --------------------------------------------------------------------------------
 	//. Set ADC properties
@@ -433,7 +530,7 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	rSeqLim.setBandWidthPerPixel        (    0,        80,     10000,       10,         330);
 	rSeqLim.setReadoutOSFactor(1.0) ;
 
-
+	rSeqLim.setExtSrfFilename ("%MEASDAT%/extrf.dat"); // pulse for IRn
 	//. -----------------------------------------------------------------------------
 	//. Configure Reconstruction / Interpolation
 	//. -----------------------------------------------------------------------------
@@ -458,15 +555,14 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	BEGIN_PARAMETER_MAP(&rSeqLim, 0, 0);
 
 
-	PARAM("Do Calibration", &u_bDoCalibration, false ,"Do Calibration");	
+	//PARAM("Do Calibration", &u_bDoCalibration, false ,"Do Calibration");	
 
-	PARAM_SELECT("Mode acq",&u_AcqMode, 1 ); 
-	OPTION("Uni",1);
-	OPTION("GA",2);
+	PARAM_SELECT("Mode acq",&u_AcqMode, 2 ); 
+	OPTION("UTE",1);
+	OPTION("RADIAL",2);
 	PARAM_SELECT_END();
 
-	PARAM("ADC offset","#s",  &l_offset, 0,10,2,4,"Time between ADC and gradient");
-	PARAM("Set amount of spoil","X Gread",  &l_spoilAmp, 0.,10.,1,0.,"Amount of spoiling");
+	PARAM("ADC offset","#s",  &l_offset, 0,10,2,0,"Self-Gating points");
 
 	PARAM_SELECT("Mode",&u_Mode, 1 ); 
 	OPTION("GRE",1);
@@ -476,10 +572,7 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	PARAM("Dummy Scan", &u_dummyScan, false ,"Add 3000 dummy scan for steady state");	
 
 	PARAM("SelfGating", &u_Selfgating, false,"activate the selfgating in gadgetron reconstruction");	
-	PARAM_GROUP(); 
-	PARAM("Cardiac Phase","",  &l_ECGPhaseNumb, 0.,20.,1,1.,"Set the number of phase that gadgetron has to reconstruct");
-	PARAM("Respiratory Phase","",  &l_RESPPhaseNumb, 0.,20.,1,1.,"Set the number of phase that gadgetron has to reconstruct");
-	PARAM_GROUP_END();
+	
 
 	PARAM("Dump", &u_bDump, true, "change the ICE program to do the dump");
 
@@ -488,8 +581,54 @@ NLSStatus FM_MP2RAGE::initialize (SeqLim &rSeqLim)
 	PARAM("TI2","ms", &u_lTI2, 100., 10000. , 1., 2200.,"Inversion Time for seconde image");
 	PARAM_GROUP_END();
 
+	PARAM("TotalTR","ms", &u_lTotalTR, 100., 10000. , 1., 5000.,"Total relaxtion time");
+
+	PARAM("Echo Train Length","", &u_lETL, 1, 256 , 1, 128,"Calibration square size");
+
+	PARAM_GROUP();
+	PARAM_SELECT("Orientation Nav.",&u_lOrientation1, 1 ); 
+	OPTION("X",1);
+	OPTION("Y",2);
+	OPTION("Z",3);
+	PARAM_SELECT_END();
+	PARAM_SELECT("Orientation Nav.",&u_lOrientation2, 4 ); 
+	OPTION("X",1);
+	OPTION("Y",2);
+	OPTION("Z",3);
+	OPTION("None",4);
+	PARAM_SELECT_END();
+	PARAM_GROUP_END();
+	
+	PARAM_SELECT("Excitation pulses",&u_lPulses, 6 ); 
+	OPTION("1 pulse",1);
+	OPTION("2 pulses",2);
+	OPTION("3 pulses",3);
+	OPTION("4 pulses",4);
+	OPTION("5 pulses",5);
+	OPTION("6 pulses",6);
+	PARAM_SELECT_END();
+	
+	PARAM("","*10-1 ppm", &u_lPPM, 0, 1000 , 1, 34,"Calibration square size");
+
+	PARAM("Resolution Temporelle","ms", &u_lRes, 0, 3000 , 1, 84,"Calibration square size");
+
+	PARAM_SELECT("Excitation pulses",&u_lFWSE, 1 ); 
+	OPTION("Composite",1);
+	OPTION("Fat",2);
+	OPTION("Wat",3);
+
+	PARAM_SELECT_END();
+	
+
 	PARAM("version","",&l_currentVersion, 1., 30.,.1, l_version,"");
 
+	PARAM_GROUP(); 
+	PARAM("Cardiac Phase","",  &l_ECGPhaseNumb, 0.,20.,1,1.,"Set the number of phase that gadgetron has to reconstruct");
+	PARAM("Respiratory Phase","",  &l_RESPPhaseNumb, 0.,20.,1,1.,"Set the number of phase that gadgetron has to reconstruct");
+	PARAM_GROUP_END();
+
+	
+	PARAM("Set amount of spoil","X Gread",  &l_spoilAmp, 0.,10.,1,0.,"Amount of spoiling");
 
 	END_PARAMETER_MAP;
 
@@ -550,7 +689,7 @@ NLSStatus FM_MP2RAGE::prepare (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqEx
 	MrProtocolData::SeqExpoRFInfo       dRfEnergyInSRFs    ;                  // RF energy in SRF
 	double       dMeasureTimeUsec      = 0.0 ;
 	//double       dTotalMeasureTimeMsec      = 0.0 ;
-
+	
 	//. ---------------------------------------------------------------------------
 	//. prepare parameter map
 	//. ---------------------------------------------------------------------------	
@@ -580,9 +719,6 @@ NLSStatus FM_MP2RAGE::prepare (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqEx
 	//if (!m_SBBCALIB.prep( rMrProt, rSeqLim,rSeqExpo))
 	//	return SEQU_ERROR ;
 
-	//. ---------------------------------------------------------------------------
-	//. Define gradient rise times and strengths
-	//. ---------------------------------------------------------------------------
 	double dReallySmallestRiseTime =  5.;
     double dReallyBiggestAmplitude = 28.;
 
@@ -600,58 +736,205 @@ NLSStatus FM_MP2RAGE::prepare (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqEx
                                          std::min( 0.65 * SysProperties::getGradMaxAmpl(SEQ::GRAD_WHISPER),dReallyBiggestAmplitude)
                                  };
 
+	//. ---------------------------------------------------------------------------
+	//. Define gradient rise times and strengths
+	//. ---------------------------------------------------------------------------
 	m_dMinRiseTime = 1.25 * SysProperties::getGradMinRiseTime(rMrProt.gradSpec().mode());
 	m_dGradMaxAmpl = 0.9 * SysProperties::getGradMaxAmpl(rMrProt.gradSpec().mode());
 
 
 if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMinRiseTime();
 
-	
-    //. ----------------------------------------------------------------------------
-    //. Preparation of non selective  Inversion Pulse
-    //. ----------------------------------------------------------------------------
-	
-	    // Tell, how many Inversion pulses would be used during the measurement
-        //  (needed for calculation of energy and time)
-    m_IRns.setRequestsPerMeasurement (1);
-        // The spoiler gradient inside the SBB can be configured / limited
-        //  for the selected gradient mode
-        // An array with the maximum amplitudes for FAST/NORMAL/WHISPER is handed over
-        // If not set, a default is used.
-    m_IRns.setMaxMagnitudes(adMaxGradAmplitudes);
-        // ditto for the minimum rise time
-    m_IRns.setMinRiseTimes (adMinRiseTimes);
-
-
-        // Tell the SBB to use the longer rise times in case of a GSWD binary search
-        // NOTE: This method has to be called for every SeqBuildBlock you use.
-    m_IRns.setGSWDGradientPerformance(rMrProt, rSeqLim);
-        // prepare the saturation SBB
-	if(! m_IRns.IRprep(rMrProt, rSeqLim, rSeqExpo))
-	{
-		TRACE_PUT1_NLS(TC_INFO, TF_SEQ, "%s: m_IRns.prep failed.",ptModule,m_IRns.getNLSStatus());
-		return m_IRns.getNLSStatus();
-	}
-	
 
 	//. ---------------------------------------------------------------------------
 	//. Prepare the RF pulse objects (Copied from UTE WIP)
 	//. ---------------------------------------------------------------------------
+	
+		
 	m_sSRF.setThickness            (10000.0);                        // This is just a dummy slice thickness
 	m_sSRF.setTypeExcitation       ();                               // Resets all moments to 0 in Unit test
 	m_sSRF.setDuration             (60);                            // Most times are in microseconds
 	m_sSRF.setFlipAngle            (rMrProt.flipAngle());           // Sets flip angle based on UI (in degrees)
 	m_sSRF.setInitialPhase         (0);                              // Sets phase of pulse in rotating frame to 0 (+x) 
-	m_sSRF.setSamples              (60);   
+	m_sSRF.setSamples              (60);  
+
+	m_sSRF02.setThickness            (10000.0);                        // This is just a dummy slice thickness
+	m_sSRF02.setTypeExcitation       ();                               // Resets all moments to 0 in Unit test
+	m_sSRF02.setDuration             (60);                            // Most times are in microseconds
+	m_sSRF02.setFlipAngle            (rMrProt.flipAngle());           // Sets flip angle based on UI (in degrees)
+	m_sSRF02.setInitialPhase         (0);                              // Sets phase of pulse in rotating frame to 0 (+x) 
+	m_sSRF02.setSamples              (60); 
+
+	//m_timeBwPulses	= 1150 - 60;
+	m_timeBwPulses = (1000000)/(2*12.8*u_lPPM);
+	std::cout << "PPM :============================= " << u_lPPM << std::endl;
+	std::cout << "to :============================= " << m_timeBwPulses << std::endl;
+	m_timeBwPulses = m_timeBwPulses - 60;
+	//m_timeBwPulses = 1220 - 60;
+	//vector<int> coeff(4);
+	int coeff[6];
+	if(u_lPulses==1){
+		//vector<int> coeff(1);
+		coefBin = 1;
+		//vector<int> coeff(u_lPulses);
+		coeff[0] = 1;}
+		
+	if(u_lPulses==2){
+		/*vector<int> coeff(2)*/;
+		coeff[0] = 1;
+		coeff[1] = 1;
+	    coefBin = 2;}
+
+	if(u_lPulses==3){
+		/*vector<int> coeff(3);*/
+		coeff[0] = 1;
+		coeff[1] = 2;
+		coeff[2] = 1;
+		coefBin = 4;}
+
+	if(u_lPulses==4){
+		/*vector<int> coeff(4);*/
+		coeff[0] = 1;
+		coeff[1] = 3;
+		coeff[2] = 3;
+		coeff[3] = 1;
+		coefBin = 8;}
+
+	if(u_lPulses==6){
+		/*vector<int> coeff(4);*/
+		coeff[0] = 1 ;
+		coeff[1] = 5 ;
+		coeff[2] = 10;
+		coeff[3] = 10;
+		coeff[4] = 5 ;
+		coeff[5] = 1 ;
+		coefBin = 32;}
+
+	for (int i=0;i<u_lPulses;i++){
+		m_sRFArray[i].sRFTab.setStartTime			 (0);
+		m_sRFArray[i].sRFTab.setThickness            (10000.0);
+		m_sRFArray[i].sRFTab.setDuration             (60);
+		if((i==1)||(i==3)||(i==5)){
+			
+			m_sRFArray[i].sRFTab.setInitialPhase         (180);
+			m_sRFArray[i].sRFTab.setFlipAngle            (4*coeff[i]*rMrProt.flipAngleArray()[1]/coefBin);
+			
+		}
+		else{
+			m_sRFArray[i].sRFTab.setFlipAngle            (4*coeff[i]*rMrProt.flipAngleArray()[1]/coefBin);
+			m_sRFArray[i].sRFTab.setInitialPhase         (0);
+		}
+
+
+
+
+
+		m_sRFArray[i].sRFTab.setSamples              (60);
+		if (i == u_lPulses-1){
+			m_sRFArray[i].sRFTab.setTypeExcitation       ();  
+		}
+		else{
+			m_sRFArray[i].sRFTab.setTypeUndefined		   ();
+		}
+		if (!m_sRFArray[i].sRFTab.prepRect(rMrProt,rSeqExpo)) return (m_sRFArray[i].sRFTab.getNLSStatus());
+		#ifndef VXWORKS
+			SeqUT.setRFThicknessInfo ( &m_sRFArray[i].sRFTab, 10000.0 );
+		#endif
+
+		m_sRFWatArray[i].sRFWatTab.setStartTime			   (0);
+		m_sRFWatArray[i].sRFWatTab.setThickness            (10000.0);
+		m_sRFWatArray[i].sRFWatTab.setDuration             (60);
+		
+		m_sRFWatArray[i].sRFWatTab.setInitialPhase         (0);
+		m_sRFWatArray[i].sRFWatTab.setFlipAngle            (coeff[i]*rMrProt.flipAngleArray()[1]/coefBin);
+		
+		
+		m_sRFWatArray[i].sRFWatTab.setSamples              (60);
+		if (i == u_lPulses-1){
+			m_sRFWatArray[i].sRFWatTab.setTypeExcitation       ();  
+		}
+		else{
+			m_sRFWatArray[i].sRFWatTab.setTypeUndefined		   ();
+		}
+		if (!m_sRFWatArray[i].sRFWatTab.prepRect(rMrProt,rSeqExpo)) return (m_sRFWatArray[i].sRFWatTab.getNLSStatus());
+		#ifndef VXWORKS
+			SeqUT.setRFThicknessInfo ( &m_sRFWatArray[i].sRFWatTab, 10000.0 );
+		#endif
+
+			
+	}
+	/*if (u_lPulses==3){
+		vector<int> coeff(4);
+		coeff[0] = 1;
+		coeff[1] = 3;
+		coeff[2] = 3;
+		 coeff[3] = 1;
+		for ( int i=0;i < u_lPulses+2; i++){
+			m_sRFTab.sRFTab[i].setThickness            (10000.0);
+			m_sRFTab.sRFTab[i].setDuration             (60);
+			m_sRFTab.sRFTab[i].setFlipAngle            (coeff[i]*(floor(rMrProt.flipAngleArray()[1]/4)*10)/10);
+			m_sRFTab.sRFTab[i].setInitialPhase         (0); 
+			m_sRFTab.sRFTab[i].setSamples              (60);
+			if (i == 3){
+				m_sRFTab.sRFTab[i].setTypeExcitation       ();  
+			}
+			else{
+				m_sRFTab.sRFTab[i].setTypeUndefined		   ();
+			}
+
+			#ifndef VXWORKS
+				SeqUT.setRFThicknessInfo ( &m_sRFTab.sRFTab[i], 10000.0 );
+			#endif
+			if (!m_sRFTab.sRFTab[i].prepRect(rMrProt,rSeqExpo)) return (m_sRFTab.sRFTab[i].getNLSStatus());
+		}
+	}*/
+	//if (u_lPulses==2){
+	//	m_sSRF_014.setThickness            (10000.0);                        // This is just a dummy slice thickness
+	//	m_sSRF_014.setDuration             (60);                            // Most times are in microseconds
+	//	m_sSRF_014.setFlipAngle            ((floor(rMrProt.flipAngleArray()[1]/4)*10)/10);           // Sets flip angle based on UI (in degrees)
+	//	m_sSRF_014.setInitialPhase         (0);                              // Sets phase of pulse in rotating frame to 0 (+x) 
+	//	m_sSRF_014.setSamples              (60);
+	//	m_sSRF_014.setTypeUndefined		   ();
+
+	//	m_sSRF_02.setThickness            (10000.0);                        // This is just a dummy slice thickness
+	//	m_sSRF_02.setDuration             (60);                            // Most times are in microseconds
+	//	m_sSRF_02.setFlipAngle            (3*(floor(rMrProt.flipAngleArray()[1]/4)*10)/10);           // Sets flip angle based on UI (in degrees)
+	//	m_sSRF_02.setInitialPhase         (0);                              // Sets phase of pulse in rotating frame to 0 (+x) 
+	//	m_sSRF_02.setSamples              (60); 
+	//	m_sSRF_02.setTypeUndefined		  ();
+
+	//	m_sSRF_03.setThickness            (10000.0);                        // This is just a dummy slice thickness
+	//	m_sSRF_03.setTypeExcitation       ();                               // Resets all moments to 0 in Unit test
+	//	m_sSRF_03.setDuration             (60);                            // Most times are in microseconds
+	//	m_sSRF_03.setFlipAngle            (3*(floor(rMrProt.flipAngleArray()[1]/4)*10)/10);           // Sets flip angle based on UI (in degrees)
+	//	m_sSRF_03.setInitialPhase         (0);                              // Sets phase of pulse in rotating frame to 0 (+x) 
+	//	m_sSRF_03.setSamples              (60); 
+
+	//	m_timeBwPulses	= 1150;
+
+	//	#ifndef VXWORKS
+	//		SeqUT.setRFThicknessInfo ( &m_sSRF_014, 10000.0 );
+	//		SeqUT.setRFThicknessInfo ( &m_sSRF_02, 10000.0 );
+	//		SeqUT.setRFThicknessInfo ( &m_sSRF_03, 10000.0 );
+	//	#endif
+	//}
 
 	// tell unit test that the thickness of the RF pulse is set to the sat thickness on purpose
-#ifndef VXWORKS
 
-	SeqUT.setRFThicknessInfo ( &m_sSRF, 10000.0 );
-#endif
-	if (!m_sSRF.prepRect(rMrProt,rSeqExpo)) return (m_sSRF.getNLSStatus());
+	//if (u_lPulses==1){
+	//	#ifndef VXWORKS
 
+	//		SeqUT.setRFThicknessInfo ( &m_sSRF, 10000.0 );
+	//	#endif
 
+	//	if (!m_sSRF.prepRect(rMrProt,rSeqExpo)) return (m_sSRF.getNLSStatus());
+	//	if (!m_sSRF02.prepRect(rMrProt,rSeqExpo)) return (m_sSRF02.getNLSStatus());
+	//}
+	//if (u_lPulses==2){
+	//	if (!m_sSRF_02.prepRect(rMrProt,rSeqExpo)) return (m_sSRF_02.getNLSStatus());
+	//	if (!m_sSRF_03.prepRect(rMrProt,rSeqExpo)) return (m_sSRF_03.getNLSStatus());
+	//	if (!m_sSRF_014.prepRect(rMrProt,rSeqExpo)) return (m_sSRF_014.getNLSStatus());
+	//}
 	//. -------------------------------------------------------------------------------
 	//. Keep the FOV 3D isotropic
 	//. -------------------------------------------------------------------------------
@@ -664,6 +947,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 
 	rMrProt.kSpace().radialInterleavesPerImage(1);
 	u_Projections = rMrProt.kSpace().radialViews();
+	
 	// make slice thickness = in-plane voxel size (tricky - cast away the const to avoid compiler errors) 
 	const_cast<Slice*>(&rMrProt.sliceSeries()[0])->thickness( rMrProt.sliceSeries()[0].readoutFOV() );
 	rMrProt.tablePositioningMode(SEQ::TP_POS_MODE_ISO);	
@@ -683,8 +967,13 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. Calculation of Gradient Amplitude
 	//. -------------------------------------------------------------------------------
 	double rampTime = 300;//TODO correct FOV depending on the rampsampling
-	double GradientAmplitudeFOV= 1e9/(rMrProt.sliceSeries()[0].readoutFOV()*m_sADC[0].getDwellTime()*m_sSRF.getLarmorConst());
-
+	if(u_AcqMode == 2){
+		GradientAmplitudeFOV= 1e9/(rMrProt.sliceSeries()[0].readoutFOV()*m_sADC[0].getDwellTime()*m_sSRF.getLarmorConst());
+	}
+	else{
+		GradientAmplitudeFOV= 1e9/((rMrProt.sliceSeries()[0].readoutFOV())*m_sADC[0].getDwellTime()*m_sSRF.getLarmorConst());
+		GradientAmplitudeFOV = GradientAmplitudeFOV/2;
+	}
 	m_lRCColumn = lColumns;
 
 	m_sADC[0].prep(lColumns, static_cast<long>(rMrProt.rxSpec().effDwellTime( rSeqLim.getReadoutOSFactor() )[0] ));
@@ -703,7 +992,12 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	m_sGradPhase.setMinRiseTime (fSDSRoundUpGRT(m_dMinRiseTime));
 	m_sGradPhase.setRampTimes(fSDSRoundUpGRT(rampTime));
 
-	m_sGradPhase.setDuration  (fSDSRoundUpGRT(rampTime + m_sADC[0].getDuration())) ;/*! EGA-03; EGA-01 !*/
+	if(u_AcqMode == 2){
+		m_sGradPhase.setDuration  (fSDSRoundUpGRT(rampTime + m_sADC[0].getDuration())) ;/*! EGA-03; EGA-01 !*/
+	}
+	else{
+		m_sGradPhase.setDuration  (fSDSRoundUpGRT(m_sADC[0].getDuration() )) ;/*! EGA-03; EGA-01 !*/
+	}
 	m_sGradPhase.prepAmplitude(GradientAmplitudeFOV);	
 
 	//. -------------------------------------------------------------------------------
@@ -713,10 +1007,15 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	m_sGradSlice.setMinRiseTime (m_dMinRiseTime);
 	m_sGradSlice.setRampTimes(fSDSRoundUpGRT(rampTime));
 
-	m_sGradSlice.setDuration  (fSDSRoundUpGRT(rampTime + m_sADC[0].getDuration() )) ;  /*! EGA-03; EGA-01 !*/
+	if(u_AcqMode == 2){
+		m_sGradSlice.setDuration  (fSDSRoundUpGRT(rampTime + m_sADC[0].getDuration() )) ;  /*! EGA-03; EGA-01 !*/
+	}
+	else{
+		m_sGradSlice.setDuration  (fSDSRoundUpGRT(m_sADC[0].getDuration() )) ;/*! EGA-03; EGA-01 !*/
+	}
 	m_sGradSlice.prepAmplitude(GradientAmplitudeFOV);
 
-	//. -------------------------------------------------------------------------------
+	//. --------------------------------------------------------------- ----------------
 	//. read phase gradient pulse
 	//. -------------------------------------------------------------------------------
 	m_sGradRead.setMaxMagnitude(m_dGradMaxAmpl);
@@ -724,32 +1023,45 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	m_sGradRead.setRampTimes(fSDSRoundUpGRT(rampTime));
 	m_sGradRead.prepAmplitude(GradientAmplitudeFOV);
 
-	m_sGradRead.setDuration(fSDSRoundUpGRT(rampTime + m_sADC[0].getDuration()));
+	if(u_AcqMode == 2){
+		m_sGradRead.setDuration(fSDSRoundUpGRT(rampTime + m_sADC[0].getDuration()));
+	}
+	else{
+		m_sGradRead.setDuration(fSDSRoundUpGRT( m_sADC[0].getDuration() ));
+	}
 	readMoment = m_sGradRead.getMomentumTOT();
 
 	if (!m_sGradRead.check()) return (m_sGradRead.getNLSStatus());
 	if (!m_sGradSlice.check()) return (m_sGradSlice.getNLSStatus());
 	if (!m_sGradPhase.check()) return (m_sGradPhase.getNLSStatus());
-	std::cout<< "ADC sg Duration = " << m_sSgADC[0].getDuration()<< std::endl;
+	//std::cout<< "ADC sg Duration = " << m_sSgADC[0].getDuration()<< std::endl;
 	//. -------------------------------------------------------------------------------
 	//. read dephase gradient pulse																	FM
 	//. -------------------------------------------------------------------------------
+	//double duration = 0.5*m_sGradRead.getDuration();
+	//duration = fSDSRoundUpGRT(duration);
+	DephGradAmpl = GradientAmplitudeFOV;
+	if(u_AcqMode == 2){
+		duration = m_sGradSlice.getMomentumTOT()/(2*DephGradAmpl);
+	}
+	else{
+		duration = m_sGradSlice.getMomentumTOT()/(DephGradAmpl);
+	}
+	duration = fSDSRoundUpGRT(duration);
+	if(u_AcqMode == 2){
 		m_sGradReadDephFM.setMaxMagnitude(m_dGradMaxAmpl);
 		m_sGradReadDephFM.setMinRiseTime (m_dMinRiseTime);
 		m_sGradReadDephFM.setRampTimes(fSDSRoundUpGRT(rampTime));
-
-		double duration = 0.5*m_sGradRead.getDuration()*GradientAmplitudeFOV/m_dGradMaxAmpl;
-		duration = fSDSRoundUpGRT(duration);
-		double DephGradAmpl = m_sGradSlice.getMomentumTOT()/(2*duration);
 
 		m_sGradReadDephFM.setDuration (duration);
 		m_sGradReadDephFM.prepAmplitude(DephGradAmpl);
 
 		if (!m_sGradReadDephFM.check()) return (m_sGradReadDephFM.getNLSStatus());
-
+	}
 	//. -------------------------------------------------------------------------------
 	//. phase dephase gradient pulse																	FM
 	//. -------------------------------------------------------------------------------
+	if(u_AcqMode == 2){
 		m_sGradPhaseDephFM.setMaxMagnitude(m_dGradMaxAmpl);
 		m_sGradPhaseDephFM.setMinRiseTime (m_dMinRiseTime);
 		m_sGradPhaseDephFM.setRampTimes(fSDSRoundUpGRT(rampTime));
@@ -758,10 +1070,12 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 		m_sGradPhaseDephFM.prepAmplitude(DephGradAmpl);
 
 		if (!m_sGradPhaseDephFM.check()) return (m_sGradPhaseDephFM.getNLSStatus());
+	}
 
 	//. -------------------------------------------------------------------------------
 	//. slice dephase gradient pulse																	FM
 	//. -------------------------------------------------------------------------------
+	if(u_AcqMode == 2){
 		m_sGradSliceDephFM.setMaxMagnitude(m_dGradMaxAmpl);
 		m_sGradSliceDephFM.setMinRiseTime (m_dMinRiseTime);
 		m_sGradSliceDephFM.setRampTimes(fSDSRoundUpGRT(rampTime));
@@ -769,12 +1083,8 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 		m_sGradSliceDephFM.setDuration (duration);
 		m_sGradSliceDephFM.prepAmplitude(DephGradAmpl);
 
-		/*std::cout << "--------------------------------------------------" << std::endl;
-		std::cout << "slice deph moment = " << 2*m_sGradSliceDephFM.getMomentumTOT() << std::endl;
-		std::cout << "slice moment      = " << m_sGradSlice.getMomentumTOT() << std::endl;*/
-
 		if (!m_sGradSliceDephFM.check()) return (m_sGradSliceDephFM.getNLSStatus());
-
+	}
 	//. -------------------------------------------------------------------------------
 	//. read rephase gradient pulse																	FM
 	//. -------------------------------------------------------------------------------
@@ -783,8 +1093,6 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 		m_sGradReadRephFM.setRampTimes(fSDSRoundUpGRT(rampTime));
 
 		m_sGradReadRephFM.prepSymmetricTOTShortestTime(readMoment + m_sGradReadDephFM.getMomentumTOT());
-		/*m_sGradReadRephFM.setDuration (duration);
-		m_sGradReadRephFM.prepAmplitude(DephGradAmpl);*/
 
 		if (!m_sGradReadRephFM.check()) return (m_sGradReadRephFM.getNLSStatus());
 
@@ -828,23 +1136,38 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	double alpha;
 	double beta1=0;
 	double hn=0;
-	double ph1;
-	double ph2;
-	double phi;
-	double theta;
-
+	//double ph1;
+	//double ph2;
+	//double phi;
+	//double theta;
 	int proj_traj = 0;
-
+	int u_iInterBwNav = 50;
 	
+	
+	repetitions =      ceil((float) u_Projections/u_lETL);
+	
+	u_iInterBwNav = u_lRes/((float) rMrProt.tr()[0]/1000);
 
-	if (u_AcqMode == 1){
-		proj_traj = 2*u_Projections;
-	}
-	else{
+	std::cout << "u_lRes = " << u_lRes << std::endl;
+	std::cout << "(rMrProt.tr()[0]/1000) = " << ((float) rMrProt.tr()[0]/1000) << std::endl;
+	std::cout<<" u_iInterBwNav = " << u_iInterBwNav << std::endl;
+
+	m_MP2Projections = u_lETL * repetitions;
+
+	std::cout<< "m_MP2Projections =" << m_MP2Projections << std::endl;
+	if (m_MP2Projections < 200000)
+		u_Projections = m_MP2Projections;
+
+	std::cout << "rMrProt.tr()[0] = " << rMrProt.tr()[0] << std::endl;
+	
+	//if (u_AcqMode == 1){
+		//proj_traj = 2*u_Projections;
+	//}
+	//else{
 		proj_traj = u_Projections;
-	}
+	//}
 
-	for ( int i=0;i < u_Projections; i++)		
+	for ( int i=0;i < u_Projections; i=i+2)		
 	{
 
 		hn=-1+(2*i)/(double(proj_traj)-1);
@@ -864,28 +1187,41 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 
 		GradxDeph[i]=cos(beta)*sin(alpha)*DephGradAmpl;
 		GradyDeph[i]=sin(beta)*sin(alpha)*DephGradAmpl;
-		GradzDeph[i]=cos(alpha)*DephGradAmpl;		
-
+		GradzDeph[i]=cos(alpha)*DephGradAmpl;
+		
 	}
 
+	for ( int i=1;i < u_Projections; i=i+2)		
+	{
+		Gradx[i]=Gradx[i-1];
+		Grady[i]=Gradz[i-1];
+		Gradz[i]=Gradz[i-1];
+
+		GradxDeph[i]=GradxDeph[i-1];
+		GradyDeph[i]=GradyDeph[i-1];
+		GradzDeph[i]=GradzDeph[i-1];
+	
+	}
 	//. Initialization of GradTab for Radial sampling.
 
-
+	std::cout << "TEST acq_mod ========================================= "<< u_AcqMode << std::endl;
 	//. ---------------------------------------------------------------------------
 	//. Initialization of GradTab for ute sampling with Golden Angle reordering
 	//. ---------------------------------------------------------------------------    
-	if(u_AcqMode==1 && u_Projections!=200000 && dummy!=u_Projections){
-		for ( int i=0;i < proj_traj; i++)		
-		{
-			Gradx[i] = (long double) (pow( (double)(-1),  i)) *Gradx[i];
-			Grady[i] = (long double) (pow( (double)(-1),  i)) *Grady[i];
-			Gradz[i] = (long double) (pow( (double)(-1),  i)) *Gradz[i];
+	//if(u_AcqMode==1 && u_Projections!=200000 && dummy!=u_Projections){
+	//	std::cout << "TEST CONDITION ========================================= "<< u_AcqMode << std::endl;
+	//	for ( int i=0;i < proj_traj; i++)		
+	//	{
+	//		
+	//		Gradx[i] = (long double) (pow( (double)(-1),  i)) *Gradx[i];
+	//		Grady[i] = (long double) (pow( (double)(-1),  i)) *Grady[i];
+	//		Gradz[i] = (long double) (pow( (double)(-1),  i)) *Gradz[i];
 
-			GradxDeph[i] = (long double) (pow( (double)(-1),  i)) *GradxDeph[i];
-			GradyDeph[i] = (long double) (pow( (double)(-1),  i)) *GradyDeph[i];
-			GradzDeph[i] = (long double) (pow( (double)(-1),  i)) *GradzDeph[i];
-		}
-	}
+	//		GradxDeph[i] = (long double) (pow( (double)(-1),  i)) *GradxDeph[i];
+	//		GradyDeph[i] = (long double) (pow( (double)(-1),  i)) *GradyDeph[i];
+	//		GradzDeph[i] = (long double) (pow( (double)(-1),  i)) *GradzDeph[i];
+	//	}
+	//}
 
 
 	
@@ -894,21 +1230,169 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. Initialization of GradTab for ute sampling with original Golden Angle
 	//. ---------------------------------------------------------------------------  
 
-	if(u_AcqMode==2 && u_Projections!=200000 && dummy!=u_Projections ){
-			for ( int i=0;i < u_Projections; i++){
+	if( u_Projections!=200000 && dummy!=u_Projections ){
+			
+			std::cout<< "u_iInterBwNav =" << u_iInterBwNav << std::endl;
+			std::cout<< "u_iInterBwNav =" << u_iInterBwNav << std::endl;
+			std::cout<< "u_iInterBwNav =" << u_iInterBwNav << std::endl;
+			int h = 0;
+			for ( int i=0;i < u_Projections/2; i++){
 				alpha =acos(fmod(0.4656*i,1));
 				if (fmod((float)i,(float)2))
 					alpha=alpha+M_PI;
 
 		 		beta=2*M_PI*fmod(0.6823*i,1);
-				Gradx[i]=cos(beta)*sin(alpha)*GradientAmplitudeFOV;
-				Grady[i]=sin(beta)*sin(alpha)*GradientAmplitudeFOV;
-				Gradz[i]=cos(alpha)*GradientAmplitudeFOV;
+				Gradx[h]=cos(beta)*sin(alpha)*GradientAmplitudeFOV;
+				Grady[h]=sin(beta)*sin(alpha)*GradientAmplitudeFOV;
+				Gradz[h]=cos(alpha)*GradientAmplitudeFOV;
 
-				GradxDeph[i]=cos(beta)*sin(alpha)*DephGradAmpl;
-				GradyDeph[i]=sin(beta)*sin(alpha)*DephGradAmpl;
-				GradzDeph[i]=cos(alpha)*DephGradAmpl;
+				GradxDeph[h]=cos(beta)*sin(alpha)*DephGradAmpl;
+				GradyDeph[h]=sin(beta)*sin(alpha)*DephGradAmpl;
+				GradzDeph[h]=cos(alpha)*DephGradAmpl;
+
+				Gradx[h+1]=cos(beta)*sin(alpha)*GradientAmplitudeFOV;
+				Gradz[h+1]=sin(beta)*sin(alpha)*GradientAmplitudeFOV;
+				Grady[h+1]=cos(alpha)*GradientAmplitudeFOV;
+
+				GradxDeph[h+1]=cos(beta)*sin(alpha)*DephGradAmpl;
+				GradzDeph[h+1]=sin(beta)*sin(alpha)*DephGradAmpl;
+				GradyDeph[h+1]=cos(alpha)*DephGradAmpl;
+				h = h+2;
+				
 		}
+
+		
+		//. ---------------------------------------------------------------------------- navigateur
+		for(int i=0; i< 3; i=i+1){
+			Gradrefx[i]=0;
+			Gradrefy[i]=0;
+			Gradrefz[i]=0;
+
+			GradrefxDeph[i]=0;
+			GradrefyDeph[i]=0;
+			GradrefzDeph[i]=0;
+		
+			if(u_lOrientation1 == 1){
+				Gradrefx[i]  = GradientAmplitudeFOV;
+				GradrefxDeph[i] = DephGradAmpl;
+			}
+			if(u_lOrientation1 == 2){
+				Gradrefy[i]  = GradientAmplitudeFOV;
+				GradrefyDeph[i] = DephGradAmpl;
+			}
+			if(u_lOrientation1 == 3){
+				Gradrefz[i]  = GradientAmplitudeFOV;
+				GradrefzDeph[i] = DephGradAmpl;
+			}	
+		}
+	if(u_iInterBwNav != 0){
+			
+		
+		for ( int j=0;j < u_lETL; j = j+u_iInterBwNav){
+			for ( int i=j;i <u_Projections ; i = i+u_lETL){
+				
+				Gradx[i]=0;
+				Grady[i]=0;
+				Gradz[i]=0;
+
+				GradxDeph[i]=0;
+				GradyDeph[i]=0;
+				GradzDeph[i]=0;
+
+				if(u_lOrientation2 != 4){
+					Gradx[i+1]=0;
+					Grady[i+1]=0;
+					Gradz[i+1]=0;
+
+					GradxDeph[i+1]=0;
+					GradyDeph[i+1]=0;
+					GradzDeph[i+1]=0;
+				}
+				if(u_lOrientation1 == 1){
+					Gradx[i]  = GradientAmplitudeFOV;
+					GradxDeph[i] = DephGradAmpl;
+				}
+				if(u_lOrientation1 == 2){
+					Grady[i]  = GradientAmplitudeFOV;
+					GradyDeph[i] = DephGradAmpl;
+				}
+				if(u_lOrientation1 == 3){
+					Gradz[i]  = GradientAmplitudeFOV;
+					GradzDeph[i] = DephGradAmpl;
+				}	
+				if(u_lOrientation2 == 1){
+					Gradx[i+1]  = GradientAmplitudeFOV;
+					GradxDeph[i+1] = DephGradAmpl;
+				}
+				if(u_lOrientation2 == 2){
+					Grady[i+1]  = GradientAmplitudeFOV;
+					GradyDeph[i+1] = DephGradAmpl;
+				}
+				if(u_lOrientation2 == 3){
+					Gradz[i+1]  = GradientAmplitudeFOV;
+					GradzDeph[i+1] = DephGradAmpl;
+				}
+			}
+		}
+		for ( int i=u_lETL-1;i <u_Projections ; i = i+u_lETL){
+			Gradx[i]= 0;
+			Grady[i]= 0;
+			Gradz[i]= 0;
+
+			GradxDeph[i]= 0;
+			GradyDeph[i]= 0;
+			GradzDeph[i]= 0;
+
+			/*if(u_lOrientation2 != 4){
+				Gradx[i-1]=0;
+				Grady[i-1]=0;
+				Gradz[i-1]=0;
+
+				GradxDeph[i-1]=0;
+				GradyDeph[i-1]=0;
+				GradzDeph[i-1]=0;
+			}*/
+
+			if(u_lOrientation1 == 1){
+				Gradx[i]  = GradientAmplitudeFOV;
+				GradxDeph[i] = DephGradAmpl;
+			}
+			if(u_lOrientation1 == 2){
+				Grady[i]  = GradientAmplitudeFOV;
+				GradyDeph[i] = DephGradAmpl;
+			}
+			if(u_lOrientation1 == 3){
+				Gradz[i]  = GradientAmplitudeFOV;
+				GradzDeph[i] = DephGradAmpl;
+			}
+			if(u_lOrientation2 == 1){
+				Gradx[i-1]  = GradientAmplitudeFOV;
+				GradxDeph[i-1] = DephGradAmpl;
+				Grady[i-1]=0;
+				Gradz[i-1]=0;
+				GradyDeph[i-1]=0;
+				GradzDeph[i-1]=0;
+			}
+			if(u_lOrientation2 == 2){
+				Grady[i-1]  = GradientAmplitudeFOV;
+				GradyDeph[i-1] = DephGradAmpl;
+				Gradx[i-1]=0;
+				Gradz[i-1]=0;
+				GradxDeph[i-1]=0;
+				GradzDeph[i-1]=0;
+			}
+			if(u_lOrientation2 == 3){
+				Gradz[i-1]  = GradientAmplitudeFOV;
+				GradzDeph[i-1] = DephGradAmpl;
+				Gradx[i-1]=0;
+				Grady[i-1]=0;
+				GradxDeph[i-1]=0;
+				GradyDeph[i-1]=0;
+			}
+		}
+		}
+
+		//. ----------------------------------------------------------------------------
 
 	}
 	
@@ -921,20 +1405,61 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	return m_TokTokSBB.getNLSStatus();
 
 	//. ----------------------------------------------------------------------------
-	//. Calculate TIFill-times and check, whether timing can be realized
-	//. ----------------------------------------------------------------------------
-	double minDelayTI1 = m_sSRF.getDuration()/2 + rMrProt.tr()[0]*(u_Projections/2);
+    //. Preparation of non selective  Inversion Pulse
+    //. ----------------------------------------------------------------------------
 	
-	double minDelayTI2 = m_sSRF.getDuration()/2 + rMrProt.tr()[0]*(u_Projections*1.5);
+	    // Tell, how many Inversion pulses would be used during the measurement
+        //  (needed for calculation of energy and time)
+    m_IRns.setRequestsPerMeasurement (repetitions);
+ //       // The spoiler gradient inside the SBB can be configured / limited
+ //       //  for the selected gradient mode
+ //       // An array with the maximum amplitudes for FAST/NORMAL/WHISPER is handed over
+ //       // If not set, a default is used.
+    m_IRns.setMaxMagnitudes(adMaxGradAmplitudes);
+ //       // ditto for the minimum rise time
+    m_IRns.setMinRiseTimes (adMinRiseTimes);
+
+
+ //       // Tell the SBB to use the longer rise times in case of a GSWD binary search
+ //       // NOTE: This method has to be called for every SeqBuildBlock you use.
+    m_IRns.setGSWDGradientPerformance(rMrProt, rSeqLim);
+        // prepare the saturation SBB
+	if(! m_IRns.IRprep(rMrProt, rSeqLim, rSeqExpo))
+	{
+		TRACE_PUT1_NLS(TC_INFO, TF_SEQ, "%s: m_IRns.prep failed.",ptModule,m_IRns.getNLSStatus());
+		return m_IRns.getNLSStatus();
+	}
 
 	//. ----------------------------------------------------------------------------
 	//. Calculate TEFill-times and check, whether timing can be realized
 	//. ----------------------------------------------------------------------------
+
 	MinDurationBetweenADCandRF = 1.2 * SysProperties::getMinDurationBetweenRFPulseAndReadout();
 	MinDurationBetweenRFandADC = 40;// FM_MP2RAGE WIP SIEMENS
-	m_lTEMin = m_sSRF.getDuration()/2 + fSDSRoundUpGRT(m_sSgADC[0].getDuration()) + m_sGradReadDephFM.getTotalTime() + m_sGradRead.getTotalTime()/2 + MinDurationBetweenRFandADC;
+	//if(u_lPulses==1){
+	std::cout << "=-=-=-=-=-=-=-=-= " << std::endl;
+	std::cout << "SRF duration = " << m_sRFArray[0].sRFTab.getDuration() << std::endl;
+	std::cout << "MinDurationBetweenRFandADC  = " << MinDurationBetweenRFandADC << std::endl;
+	std::cout << "DEPH duration = " << fSDSRoundUpGRT(m_sGradReadDephFM.getTotalTime()) << std::endl;
+	std::cout << "Read duration = " << m_sGradRead.getTotalTime() << std::endl;
+	
 
+	//std::cout << "DA  = " << m_timeBwPulses << std::endl;
+	std::cout << "MinDurationBetweenRFandADC  = " << MinDurationBetweenRFandADC << std::endl;
+
+		m_lTEMin = m_sRFArray[0].sRFTab.getDuration()/2 + m_sGradRead.getTotalTime()/2 + MinDurationBetweenRFandADC + m_sGradReadDephFM.getTotalTime();
+		
+		if(u_lPulses !=1){
+			m_lTEMin += 1.5*m_sRFArray[0].sRFTab.getDuration() + 1.5*m_timeBwPulses;
+		}
+		//}
+	//if(u_lPulses!=2){
+	//	m_lTEMin = m_sSRF_03.getDuration()/2 + m_sSRF_014.getDuration() + m_timeBwPulses + fSDSRoundUpGRT(m_sSgADC[0].getDuration()) + m_sGradReadDephFM.getTotalTime() + m_sGradRead.getTotalTime()/2 + MinDurationBetweenRFandADC;
+	//}
+	
+	
 	std::cout << "TE Min = " << m_lTEMin << std::endl;
+	std::cout << "=-=-=-=-=-=-=-=-= " << std::endl;
 	std::cout <<" TE Min UT = " << m_sSRF.getDuration()/2 + m_sSgADC[0].getDuration()/2 << std::endl;
 	m_alTEFil[0] = rMrProt.te()[0] - m_lTEMin;
 		//m_alTEFil[ 0] = rMrProt.te()[0]  - (m_sSRF.getDuration()/2 + MinDurationBetweenRFandADC);
@@ -948,12 +1473,19 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 
 
 
-	std::cout << "TE min =" <<m_lTEMin;
+	std::cout << "TE fil =" <<m_alTEFil[ 0];
 	//. ----------------------------------------------------------------------------
 	//. Calculate minimum TR and check, whether timing can be realized
 	//. ----------------------------------------------------------------------------	
 
-	m_lTRMin = rMrProt.te()[0] + m_sSRF.getDuration()/2 +m_sGradRead.getTotalTime()/2 + max(m_sGradReadRephFM.getTotalTime(),m_sGradPhaseRephFM.getTotalTime()) + 100;
+	//m_lTRMin = rMrProt.te()[0] + m_sSRF.getDuration()/2 +m_sGradRead.getTotalTime()/2 + max(m_sGradReadRephFM.getTotalTime(),m_sGradPhaseRephFM.getTotalTime()) + 100;
+	m_lTRMin = rMrProt.te()[0] +m_sGradRead.getTotalTime()/2 + max(m_sGradReadRephFM.getTotalTime(),m_sGradPhaseRephFM.getTotalTime()) + MinDurationBetweenADCandRF;
+
+	if(u_lPulses>2){
+		m_lTRMin = m_lTRMin + 2* m_sRFArray[0].sRFTab.getDuration() + 1.5* m_timeBwPulses;
+	}
+
+	/*std::cout << "TE min = " << m_lTEMin << std::endl;
 
 
 	std::cout << "m_lTR Min = " << m_lTRMin << std::endl;
@@ -962,11 +1494,19 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	std::cout << "fSDSRoundUpGRT(m_sGradRead.getTotalTime()/2) = " << fSDSRoundUpGRT(m_sGradRead.getTotalTime()/2) << std::endl;
 	std::cout << "max(m_sGradReadRephFM.getTotalTime(),m_sGradPhaseRephFM.getTotalTime()) = " << max(m_sGradReadRephFM.getTotalTime(),m_sGradPhaseRephFM.getTotalTime()) << std::endl;
 	std::cout << "m_sGradReadRephFM.getTotalTime() = " << m_sGradReadRephFM.getTotalTime() << std::endl;
-	std::cout << "m_sGradPhaseRephFM.getTotalTime() = " << m_sGradPhaseRephFM.getTotalTime() << std::endl;
+	std::cout << "m_sGradPhaseRephFM.getTotalTime() = " << m_sGradPhaseRephFM.getTotalTime() << std::endl;*/
 
 
-	if(u_Mode==2)
-		m_lTRMin +=  m_sGradRead.getTotalTime(); 
+	/*if(u_Mode==2)
+		m_lTRMin +=  m_sGradRead.getTotalTime(); */
+
+	std::cout << "=-=-=-=-=-=-=-=-= " << std::endl;
+	std::cout << "TE min " << rMrProt.te()[0] << std::endl;
+	std::cout << "fSDSRoundUpGRT(m_sGradRead.getTotalTime()/2) = " << fSDSRoundUpGRT(m_sGradRead.getTotalTime()/2) << std::endl;
+	std::cout << "max(m_sGradReadRephFM.getTotalTime(),m_sGradPhaseRephFM.getTotalTime()) = " << max(m_sGradReadRephFM.getTotalTime(),m_sGradPhaseRephFM.getTotalTime()) << std::endl;
+	std::cout << "MinDurationBetweenADCandRF = " << MinDurationBetweenADCandRF << std::endl;
+	std::cout << "m_lTRMin = " << m_lTRMin << std::endl;
+	std::cout << "=-=-=-=-=-=-=-=-= " << std::endl;
 
 
 	if ( rMrProt.tr()[0] < m_lTRMin )
@@ -975,6 +1515,64 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 		//else
 		//return SBB_NEGATIV_TRFILL ;
 
+	//. ----------------------------------------------------------------------------
+    //. Calculate Delay Fill-times and check, whether timing can be realized // Ajout Aur�lien TROTIER
+    //. ----------------------------------------------------------------------------
+	//double minDelayTI1 = u_lETL * rMrProt.tr()[0]/2;	
+	////CHANGE_LIMITS(&u_lTI1,(long) (minDelayTI1/1000.0),(long) 10000.,(long) 1.);
+	//m_dDelayTI1 = u_lTI1 - minDelayTI1/1000;
+
+	//if(m_dDelayTI1 < 0)
+	//	u_lTI1 = minDelayTI1/1000;
+
+	//double minDelayTI2 = u_lETL * rMrProt.tr()[0] * 1.5 + m_dDelayTI1;
+	//m_dDelayTI2 = u_lTI2 - minDelayTI2/1000;
+
+	//if(m_dDelayTI2 < 0)
+	//	u_lTI2 = minDelayTI2/1000;
+
+	//double minDelayTR = 2 * u_lETL * rMrProt.tr()[0] + m_dDelayTI1 + m_dDelayTI2;
+	//m_dDelayTR  = u_lTotalTR - minDelayTR/1000            ;  // delay between GRE train 2 and total TR
+	//
+	//
+	
+	/*if(m_dDelayTR < 0)
+		u_lTotalTR = minDelayTR/1000;*/
+	
+	double minDelayTI1 = ((m_IRns.getBIR4SRDuration())+ (u_lETL * rMrProt.tr()[0])/2);
+	CHANGE_LIMITS(&u_lTI1,(long) (minDelayTI1/1000.0),(long) 10000.,(long) 1.);
+	m_dDelayTI1 = u_lTI1*1000.0 - minDelayTI1;
+	std::cout<< "getDurationPerRequest =" << m_IRns.getDurationPerRequest() << std::endl;
+	std::cout<< "getBIR4SRDuration() =" << m_IRns.getBIR4SRDuration() << std::endl;
+	if(u_lTI1*1000.0 < minDelayTI1)
+	{
+		u_lTI1 = minDelayTI1/1000;
+		m_dDelayTI1=0;
+	}
+
+	std::cout << "u_lTI1 = " << static_cast<long>(u_lTI1) << " || minDelayTI1 = " << minDelayTI1/1000 << " || m_dDelayTI1 = " << m_dDelayTI1/1000 << std::endl;
+
+	double minDelayTI2 = u_lTI1*1000 + u_lETL * rMrProt.tr()[0];
+	CHANGE_LIMITS(&u_lTI2,(long) (minDelayTI2/1000.0),(long) 10000.,(long) 1.);
+	m_dDelayTI2 = u_lTI2*1000 - minDelayTI2;
+
+	if(u_lTI2*1000.0 < minDelayTI2)
+	{
+		u_lTI2 = minDelayTI2/1000;
+		m_dDelayTI2=0;
+	}
+
+	std::cout << "u_lTI2 = " << static_cast<long>(u_lTI2) << " || minDelayTI2 = " << minDelayTI2/1000 << " || m_dDelayTI2 = " << m_dDelayTI2/1000 << std::endl;
+
+	double minDelayTR = u_lTI2*1000 + (u_lETL * rMrProt.tr()[0])/2;
+	CHANGE_LIMITS(&u_lTotalTR,(long) (minDelayTR/1000.0),(long) 10000.,(long) 1.);
+	m_dDelayTR = u_lTotalTR*1000 - minDelayTR;
+
+	if(u_lTotalTR*1000.0 < minDelayTR)
+	{
+	u_lTotalTR = minDelayTR/1000;
+	m_dDelayTR=0;
+	}
 
 	//. ----------------------------------------------------------------------------
 	//. Set m_lTrigHaltDuration1 and m_lTrigHaltDuration2
@@ -993,14 +1591,21 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. ----------------------------------------------------------------------------
 	//.  calculation dMeasureTimeUsec
 	//. ----------------------------------------------------------------------------	
-	double m_lKernelRequestsPerMeasurement= m_lPhasesToMeasure * m_lSlicesToMeasure  * u_Projections  * rMrProt.averages();
-	std::cout << "nbkernel == "<< m_lKernelRequestsPerMeasurement << std::endl;
+	double m_lKernelRequestsPerMeasurement= m_lPhasesToMeasure * m_lSlicesToMeasure  * (2*u_Projections)  * rMrProt.averages();
+	
 	if(u_dummyScan)
 		m_lKernelRequestsPerMeasurement+=3000;
 
 	dMeasureTimeUsec = m_lKernelRequestsPerMeasurement * rMrProt.tr()[0] ;
+	std::cout << "TR  =========" << rMrProt.tr()[0] << std::endl;
+	std::cout << "Kernl =========" << m_lKernelRequestsPerMeasurement << std::endl;
+	std::cout << "TR * Kernl =========" << dMeasureTimeUsec << std::endl;
+	std::cout << "m_IRns.getBIR4SRDuration() =========" << m_IRns.getBIR4SRDuration() << std::endl;
+	std::cout << "m_IRns.getDurationPerRequest() =========" << m_IRns.getDurationPerRequest() << std::endl;
+	dMeasureTimeUsec = dMeasureTimeUsec + (m_dDelayTI1+m_dDelayTI2+m_dDelayTR + m_IRns.getDurationPerRequest()) * repetitions;
+	//dMeasureTimeUsec = dMeasureTimeUsec + (m_dDelayTI1+m_dDelayTI2+m_dDelayTR + m_IRns.getBIR4SRDuration()) * repetitions;
 	//dMeasureTimeUsec += m_lKernelRequestsPerMeasurement * (m_lTrigHaltDuration1 + m_lTrigHaltDuration2)/ u_Projections;
-
+	std::cout << "TR * Kernl apres dlais=========" << dMeasureTimeUsec << std::endl;
 	//. ----------------------------------------------------------------------------
 	//.  calculation m_dTotalMeasureTimeUsec
 	//. ----------------------------------------------------------------------------	
@@ -1010,11 +1615,11 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
  //   OnErrorPrintAndReturn(lStatus,"fSBBMeasRepetDelaysPrep");
 
   // double m_dTotalMeasureTimeUsec = dTotalMeasureTimeMsec * 1000.0;
-
+	std::cout << "m_lRepetitionsToMeasure=========" << m_lRepetitionsToMeasure << std::endl;
 	double m_dTotalMeasureTimeUsec=0.0;
-	m_dTotalMeasureTimeUsec =  dMeasureTimeUsec * (m_lRepetitionsToMeasure + 1);
+	m_dTotalMeasureTimeUsec =  dMeasureTimeUsec * (m_lRepetitionsToMeasure +1);
 	m_dTotalMeasureTimeUsec += (double) m_TokTokSBB.getDurationPerRequest();
-
+	//std::cout << "Energy SBB" << m_SBBCALIB.getRFInfoPerRequest() << std::endl;
 	if(u_bDoCalibration)
 	m_dTotalMeasureTimeUsec += (double) m_SBBCALIB.getDurationPerRequest(); 
     if ( (rMrProt.getsPhysioImaging().getlMethod1() == SEQ::METHOD_TRIGGERING) &&
@@ -1035,14 +1640,24 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//.  update correction secan time 
 	//. ----------------------------------------------------------------------------		
     rSeqExpo.setPreScans               (3000);   
-    rSeqExpo.setRelevantReadoutsForMeasTime ( m_lPhasesToMeasure * m_lSlicesToMeasure  * u_Projections  * rMrProt.averages());
+    rSeqExpo.setRelevantReadoutsForMeasTime ( m_lPhasesToMeasure * m_lSlicesToMeasure  * 2* u_Projections  * rMrProt.averages());
 
 	//. ----------------------------------------------------------------------------
 	//.  calculation dRfEnergyInSRFs
 	//. ----------------------------------------------------------------------------		
-	dRfEnergyInSRFs  = m_lKernelRequestsPerMeasurement * m_sSRF.getRFInfo()  * (rMrProt.repetitions()+1); // should i add RF info of SBBCALIB (Aurel)
+	float Temp;
+	dRfEnergyInSRFs  = m_lKernelRequestsPerMeasurement * m_sSRF.getRFInfo()  * (rMrProt.repetitions()+1) ; // should i add RF info of SBBCALIB (Aurel)
+
+	Temp = m_lKernelRequestsPerMeasurement * (rMrProt.repetitions()+1) ;
+	//dRfEnergyInSRFsTemp = m_lKernelRequestsPerMeasurement * (rMrProt.repetitions()+1) ;
+	for(int i=0; i<u_lPulses; i++){
+		
+		dRfEnergyInSRFs = dRfEnergyInSRFs + Temp * m_sRFArray[i].sRFTab.getRFInfo();
+	}
+	dRfEnergyInSRFs = dRfEnergyInSRFs + m_IRns.getRFInfoPerRequest()*repetitions;
+	
 	if(u_bDoCalibration)
-	dRfEnergyInSRFs = m_SBBCALIB.getRFInfoPerRequest() + dRfEnergyInSRFs;
+		dRfEnergyInSRFs = m_SBBCALIB.getRFInfoPerRequest() + dRfEnergyInSRFs ;
 
 	//std::cout << "Energy SBB" << m_SBBCALIB.getRFInfoPerRequest() << std::endl;
 
@@ -1063,7 +1678,7 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//. ---------------------------------------------------------------------------
 	fSUSetSequenceString ("fl", rMrProt, rSeqExpo); // tell the basic sequence string
 	rSeqExpo.setMeasured3dPartitions(1);
-    rSeqExpo.setRFInfo(dRfEnergyInSRFs );
+    rSeqExpo.setRFInfo(dRfEnergyInSRFs);
 	rSeqExpo.setMeasureTimeUsec (dMeasureTimeUsec);
 	rSeqExpo.setTotalMeasureTimeUsec(m_dTotalMeasureTimeUsec );
 	rSeqExpo.setMeasuredPELines(u_Projections);
@@ -1106,8 +1721,10 @@ if (rMrProt.gradSpec().isGSWDMode()) m_dMinRiseTime =  rMrProt.gradSpec().GSWDMi
 	//SeqUT.DisableTestCase(NoGrInXErr, RTEB_ORIGIN_fSEQRunFinish,"Test");
 	//SeqUT.DisableTestCase(MoreGrInXErr, RTEB_ORIGIN_fSeqRunFinish,"Test");
 	//SeqUT.DisableTestCase(EndNoParalNCOErr, RTEB_ORIGIN_fSeqRunFinish,"Test");
-	SeqUT.DisableTestCase(lNoAddDimCheckedMomentErr, RTEB_ORIGIN_fSEQRunFinish,"Test");
+	SeqUT.DisableTestCase(lKzMomentsNotConstForCenterPartitionErr, RTEB_ORIGIN_fSEQRunFinish,"Test");
+	SeqUT.DisableTestCase(lNoOfLastScanInConcatErr, RTEB_ORIGIN_fSEQRunFinish,"Test");
 	SeqUT.DisableTestCase(lGsMomentNotRephasedErr, RTEB_ORIGIN_fSEQRunFinish,"Test");
+	
 	
 
 
@@ -1229,7 +1846,6 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 	// Initialization of the unit test function
 	mSEQTest(rMrProt,rSeqLim,rSeqExpo,RTEB_ORIGIN_fSEQRunStart,0,0,0,0,0); /*! EGA-All !*/
 
-
 	//. --------------------------------------------------------------------------
 	//. Set the  getMDH() parameters
 	//. --------------------------------------------------------------------------
@@ -1292,11 +1908,35 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 	}
 
 	//. --------------------------------------------------------------------------
-	//. Set the frequency/phase properties of the RF pulses
+	//. Set the frequency/phase properties of the RF pulses testsrf
 	//. --------------------------------------------------------------------------
-	m_sSRFzSet.set("sSRF01zSet", 0, m_sSRF.getInitialPhase());
-	m_sSRFzNeg.set("sSRF01zSet", 0, -m_sSRF.getInitialPhase());
+	//if (u_lPulses==1){
+	// FM correction angle pour la graisse
+	//for (int i=0;i<u_lPulses;i++){
+	//	//m_sRFzSetArray.set("sSRFzSet", 0,m_sRFArray[i].sRFTab.getInitialPhase());
+	//	m_sRFzSetArray[i].sSRFzSetTab.set("sSRFzSet", 0,m_sRFArray[i].sRFTab.getInitialPhase());
+	//	m_sRFzNegArray[i].sSRFzNegTab.set("sSRFzNeg", 0,-m_sRFArray[i].sRFTab.getInitialPhase());
+	//	
+	//	m_sRFzWatSetArray[i].sSRFzWatSetTab.set("sSRFzSet", 0,m_sRFWatArray[i].sRFWatTab.getInitialPhase());
+	//	m_sRFzWatNegArray[i].sSRFzWatNegTab.set("sSRFzNeg", 0,-m_sRFWatArray[i].sRFWatTab.getInitialPhase());
+	//}
+	// FM fin commentaire
+		m_sSRFzSet.set("sSRFzSet", 0, m_sSRF.getInitialPhase());
+		m_sSRFzNeg.set("sSRFzSet", 0, -m_sSRF.getInitialPhase());
 
+		m_sSRF02zSet.set("sSRF02zSet", 0, m_sSRF02.getInitialPhase());
+		m_sSRF02zNeg.set("sSRF02zSet", 0, -m_sSRF02.getInitialPhase());
+	//}
+	/*if (u_lPulses==2){
+		m_sSRF_02zSet.set("sSRF_02zSet", 0, m_sSRF_02.getInitialPhase());
+		m_sSRF_02zNeg.set("sSRF_02zSet", 0, -m_sSRF_02.getInitialPhase());
+
+		m_sSRF_03zSet.set("sSRF_03zSet", 0, m_sSRF_03.getInitialPhase());
+		m_sSRF_03zNeg.set("sSRF_03zSet", 0, -m_sSRF_03.getInitialPhase());
+
+		m_sSRF_014zSet.set("sSRF_014zSet", 0, m_sSRF_014.getInitialPhase());
+		m_sSRF_014zNeg.set("sSRF_014zSet", 0, -m_sSRF_014.getInitialPhase());
+	}*/
 	//. --------------------------------------------------------------------------
 	//. Set the frequency/phase properties of the adc OFFcenter is dealt in gadgetron
 	//. --------------------------------------------------------------------------
@@ -1346,33 +1986,56 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 				//. ---------------------------------------------------------------------------
 				//. LOOP OVER PHASES
 				//. ---------------------------------------------------------------------------
+						
 				for ( lPhase=0; lPhase< m_lPhasesToMeasure;lPhase++) {
-
+					
 					if( div (long(u_Projections-CurrentProjection),long(MaxProjectionInPhase)).quot>=1 )
 					ProjectionToMeasure=MaxProjectionInPhase;
 					else
 					ProjectionToMeasure=u_Projections-CurrentProjection;
+					for (int o = 0; o <repetitions; o++){
+						for(m_t = 0; m_t < 2; m_t++){
+							if(m_t==0){
+								//m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice]);
+								// ajout inversion pulse
+								
+								if(!m_IRns.IRrun(rMrProt, rSeqLim, rSeqExpo, &m_asSLC[lChronologicSlice])) // lancement de l'inversion
+								{
+									
+									TRACE_PUT1_NLS(TC_INFO, TF_SEQ, "%s: m_IRns.run failed.",ptModule,m_IRns.getNLSStatus());
+									return m_IRns.getNLSStatus();
+								}
+								fSBBFillTimeRun(m_dDelayTI1);
+							}
+							else
+								fSBBFillTimeRun(m_dDelayTI2);
 
-					for( int k=CurrentProjection; k < int(CurrentProjection+ProjectionToMeasure);k++){
+							/*for( int k=CurrentProjection; k < int(CurrentProjection+ProjectionToMeasure);k++){*/
+							for( int k=0; k < u_lETL;k++){
 
 
-					    
-						m_sADC[0].setRelevantForMeasTime();
-						m_sADC[0].getMDH().setCphs (lPhase);
-						m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_ONLINE) ;
-						m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_PATREFSCAN) ;
+							    
+								m_sADC[0].setRelevantForMeasTime();
+								m_sADC[0].getMDH().setCphs (lPhase);
+								m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_ONLINE) ;
+								m_sSgADC[0].getMDH().setEvalInfoMask (m_sSgADC[0].getMDH().getEvalInfoMask() | MDH_PATREFSCAN) ;
 
-					
+							
 
-						m_sSgADC[0].getMDH().setPATRefScan(true);
+								m_sSgADC[0].getMDH().setPATRefScan(true);
 
-						// run FM_MP2RAGE kernel	
-						mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockInitTR   , 1, 1, m_asSLC[0].getSliceIndex(), 0, 0) ;
-						lStatus=runKernel( rMrProt, rSeqLim, rSeqExpo, KERNEL_IMAGE, k,lChronologicSlice,lPartition);
-						mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockCheck   , 1, 2, m_asSLC[0].getSliceIndex(), 0, 0) ;
+								// run FM_MP2RAGE kernel	
+								mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockInitTR   , 1, 1, m_asSLC[0].getSliceIndex(), 0, 0) ;
+								lStatus=runKernel( rMrProt, rSeqLim, rSeqExpo, KERNEL_IMAGE, o*u_lETL + k,lChronologicSlice,lPartition);
+								mSEQTest (rMrProt, rSeqLim, rSeqExpo, RTEB_ClockCheck   , 1, 2, m_asSLC[0].getSliceIndex(), 0, 0) ;
 
 
-					}				
+							}
+							if (m_t == 1)
+								fSBBFillTimeRun(m_dDelayTR);
+						}
+					}
+
 				}			
 				CurrentProjection+=ProjectionToMeasure;
 
@@ -1418,6 +2081,7 @@ NLSStatus FM_MP2RAGE::run (MrProt &rMrProt, SeqLim &rSeqLim, SeqExpo &rSeqExpo)
 //   --------------------------------------------------------------------------
 NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqExpo, long lKernelMode, long ProjectionNumber,long lChronologicSlice, long lpartition )
 {
+	
 	//. --------------------------------------------------------------------------
 	//. Local variables
 	//. --------------------------------------------------------------------------
@@ -1425,7 +2089,7 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 	NLS_STATUS         lStatus          = SEQU__NORMAL ;      // a status variable
 	unsigned long      ulTestIdent      = 0 ;                 // tell unit test whether we're running or checking the kernel
 	long               lT               = 0 ;                 // used as clock time in the main event block
-
+	int				   nav              = 0 ;
 	if (lKernelMode == KERNEL_CHECK) ulTestIdent = RTEB_ORIGIN_fSEQCheck;
 	else                             ulTestIdent = RTEB_ORIGIN_fSEQRunKernel;
 
@@ -1434,27 +2098,120 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 	//. Set gradient amplitudes
 	//. --------------------------------------------------------------------------
 	if(lKernelMode!=KERNEL_PREPARE){
-		m_sGradRead.setAmplitude(Gradx[ProjectionNumber]);
-		m_sGradPhase.setAmplitude(Grady[ProjectionNumber]);
-		m_sGradSlice.setAmplitude(Gradz[ProjectionNumber]);
+		if(ProjectionNumber<0){
+			int nav = ProjectionNumber;
+			std::cout << "Navigateur ==========================================-------------------------==================================== " << nav <<std::endl ;
+		
+			ProjectionNumber = 0;
+			std::cout << "Navigateur ==========================================-------------------------==================================== " << nav <<std::endl ;
+		}
+		
+		//if(int(ProjectionNumber % 12) != 0){
+			
+			m_sGradRead.setAmplitude(Gradx[ProjectionNumber]);
+			m_sGradPhase.setAmplitude(Grady[ProjectionNumber]);
+			m_sGradSlice.setAmplitude(Gradz[ProjectionNumber]);
 
-		m_sGradReadDephFM.setAmplitude(-GradxDeph[ProjectionNumber]);
-		m_sGradPhaseDephFM.setAmplitude(-GradyDeph[ProjectionNumber]);
-		m_sGradSliceDephFM.setAmplitude(-GradzDeph[ProjectionNumber]);
+			if(u_AcqMode == 2){
+				m_sGradReadDephFM.setAmplitude(-GradxDeph[ProjectionNumber]);
+				m_sGradPhaseDephFM.setAmplitude(-GradyDeph[ProjectionNumber]);
+				m_sGradSliceDephFM.setAmplitude(-GradzDeph[ProjectionNumber]);
+			}
 
-		//m_sGradReadRephFM.setAmplitude(-GradxDeph[ProjectionNumber]);
-		m_sGradReadRephFM.prepSymmetricTOTShortestTime(readMoment + m_sGradReadDephFM.getMomentumTOT());
-		m_sGradPhaseRephFM.setAmplitude(-GradyDeph[ProjectionNumber]);
-		m_sGradSliceRephFM.setAmplitude(-GradzDeph[ProjectionNumber]);
-
-		 if(u_Mode==2 ){
-			m_sGradReadDephFM.setAmplitude(-GradxDeph[ProjectionNumber]);
-			m_sGradPhaseDephFM.setAmplitude(-GradyDeph[ProjectionNumber]);
-			m_sGradSliceDephFM.setAmplitude(-GradzDeph[ProjectionNumber]);
-			m_sGradReadRephFM.setAmplitude(-GradxDeph[ProjectionNumber]);
+			//m_sGradReadRephFM.setAmplitude(-GradxDeph[ProjectionNumber]);
+			m_sGradReadRephFM.prepSymmetricTOTShortestTime(readMoment + m_sGradReadDephFM.getMomentumTOT());
 			m_sGradPhaseRephFM.setAmplitude(-GradyDeph[ProjectionNumber]);
 			m_sGradSliceRephFM.setAmplitude(-GradzDeph[ProjectionNumber]);
-		}
+
+			 if(u_Mode==2 ){
+				if(u_AcqMode == 2){
+					m_sGradReadDephFM.setAmplitude(-GradxDeph[ProjectionNumber]);
+					m_sGradPhaseDephFM.setAmplitude(-GradyDeph[ProjectionNumber]);
+					m_sGradSliceDephFM.setAmplitude(-GradzDeph[ProjectionNumber]);
+				}
+				m_sGradReadRephFM.setAmplitude(-GradxDeph[ProjectionNumber]);
+				m_sGradPhaseRephFM.setAmplitude(-GradyDeph[ProjectionNumber]);
+				m_sGradSliceRephFM.setAmplitude(-GradzDeph[ProjectionNumber]); 
+			}
+		//}
+		//else{
+		//	if(u_lOrientation1==1 ){
+		//		m_sGradRead.setAmplitude(GradientAmplitudeFOV);
+		//		m_sGradPhase.setAmplitude(0);
+		//		m_sGradSlice.setAmplitude(0);
+
+
+		//		m_sGradReadDephFM.setAmplitude(-DephGradAmpl);
+		//		m_sGradPhaseDephFM.setAmplitude(0);
+		//		m_sGradSliceDephFM.setAmplitude(0);
+		//		
+		//		std::cout << "GradientAmplitudeFOV = " << GradientAmplitudeFOV <<std::endl ;
+		//		//m_sGradReadRephFM.setAmplitude(-GradxDeph[ProjectionNumber]);
+		//		m_sGradReadRephFM.prepSymmetricTOTShortestTime(readMoment + m_sGradReadDephFM.getMomentumTOT());
+		//		m_sGradPhaseRephFM.setAmplitude(0);
+		//		m_sGradSliceRephFM.setAmplitude(0);
+
+		//		 if(u_Mode==2 ){
+		//			m_sGradReadDephFM.setAmplitude(-DephGradAmpl);
+		//			m_sGradPhaseDephFM.setAmplitude(0);
+		//			m_sGradSliceDephFM.setAmplitude(0);
+		//			m_sGradReadRephFM.setAmplitude(-DephGradAmpl);
+		//			m_sGradPhaseRephFM.setAmplitude(0);
+		//			m_sGradSliceRephFM.setAmplitude(0); 
+		//		}
+		//	}
+		//	if(u_lOrientation1==2 ){
+		//			m_sGradRead.setAmplitude(0);
+		//			m_sGradPhase.setAmplitude(GradientAmplitudeFOV);
+		//			m_sGradSlice.setAmplitude(0);
+
+
+		//			m_sGradReadDephFM.setAmplitude(0);
+		//			m_sGradPhaseDephFM.setAmplitude(-DephGradAmpl);
+		//			m_sGradSliceDephFM.setAmplitude(0);
+
+		//			//m_sGradReadRephFM.setAmplitude(-GradxDeph[ProjectionNumber]);
+		//			m_sGradReadRephFM.prepSymmetricTOTShortestTime(readMoment + m_sGradReadDephFM.getMomentumTOT());
+		//			m_sGradPhaseRephFM.setAmplitude(-DephGradAmpl);
+		//			m_sGradSliceRephFM.setAmplitude(0);
+
+		//			 if(u_Mode==2 ){
+		//				m_sGradReadDephFM.setAmplitude(0);
+		//				m_sGradPhaseDephFM.setAmplitude(-DephGradAmpl);
+		//				m_sGradSliceDephFM.setAmplitude(0);
+		//				m_sGradReadRephFM.setAmplitude(0);
+		//				m_sGradPhaseRephFM.setAmplitude(-DephGradAmpl);
+		//				m_sGradSliceRephFM.setAmplitude(0); 
+		//			}
+		//	}
+		//	if(u_lOrientation1==3 ){
+		//			m_sGradRead.setAmplitude(0);
+		//			m_sGradPhase.setAmplitude(0);
+		//			m_sGradSlice.setAmplitude(GradientAmplitudeFOV);
+
+
+		//			m_sGradReadDephFM.setAmplitude(0);
+		//			m_sGradPhaseDephFM.setAmplitude(0);
+		//			m_sGradSliceDephFM.setAmplitude(-DephGradAmpl);
+
+		//			//m_sGradReadRephFM.setAmplitude(-GradxDeph[ProjectionNumber]);
+		//			m_sGradReadRephFM.prepSymmetricTOTShortestTime(readMoment + m_sGradReadDephFM.getMomentumTOT());
+		//			m_sGradPhaseRephFM.setAmplitude(0);
+		//			m_sGradSliceRephFM.setAmplitude(-DephGradAmpl);
+
+		//			 if(u_Mode==2 ){
+		//				m_sGradReadDephFM.setAmplitude(0);
+		//				m_sGradPhaseDephFM.setAmplitude(0);
+		//				m_sGradSliceDephFM.setAmplitude(-DephGradAmpl);
+		//				m_sGradReadRephFM.setAmplitude(0);
+		//				m_sGradPhaseRephFM.setAmplitude(0);
+		//				m_sGradSliceRephFM.setAmplitude(-DephGradAmpl); 
+		//			}
+		//	}
+		//}
+		//std::cout << "ProjectionNumber = " << ProjectionNumber << "ETL = " << u_lETL << "Reste = " << int (ProjectionNumber % u_lETL) << std::endl;
+		
+
 	}
 	 else{	
 		m_sGradRead.setAmplitude (0);
@@ -1462,18 +2219,22 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 		m_sGradSlice.setAmplitude(0);
 
 			// FMUTE
+		if(u_AcqMode == 2){
 			m_sGradReadDephFM.setAmplitude(0);
 			m_sGradPhaseDephFM.setAmplitude(0);
 			m_sGradSliceDephFM.setAmplitude(0);
-			m_sGradReadRephFM.setAmplitude(0);
-			m_sGradPhaseRephFM.setAmplitude(0);
-			m_sGradSliceRephFM.setAmplitude(0);
+		}
+		m_sGradReadRephFM.setAmplitude(0);
+		m_sGradPhaseRephFM.setAmplitude(0);
+		m_sGradSliceRephFM.setAmplitude(0);
 
 
 		 if( u_Mode==2 ){
-			m_sGradReadDephFM.setAmplitude(0);
-			m_sGradPhaseDephFM.setAmplitude(0);
-			m_sGradSliceDephFM.setAmplitude(0);
+			if(u_AcqMode == 2){
+				m_sGradReadDephFM.setAmplitude(0);
+				m_sGradPhaseDephFM.setAmplitude(0);
+				m_sGradSliceDephFM.setAmplitude(0);
+			}
 			m_sGradReadRephFM.setAmplitude(0);
 			m_sGradPhaseRephFM.setAmplitude(0);
 			m_sGradSliceRephFM.setAmplitude(0);	
@@ -1525,7 +2286,13 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 		//. ---------------------------------------------------------------------------
 		//. Handle RF spoiling in GRE
 		//. ---------------------------------------------------------------------------
+		/*if(ProjectionNumber%(u_lETL) == 0)  {
+			m_dRFSpoilPhase = 0;
+			m_dRFSpoilIncrement = 0;
+			std::cout << "m_dRFSpoilIncrement = " << m_dRFSpoilIncrement << std::endl;
+		}*/
 		m_dRFSpoilIncrement += RFSPOIL_INCREMENTdeg ; //RFSPOIL_INCREMENTdeg=50°
+		
 		m_dRFSpoilPhase     += m_dRFSpoilIncrement ;
 		m_dRFSpoilPhase     = fmod(m_dRFSpoilPhase,     (double) RFMAXPHASEdeg);            // keep phase smaller than 1000 * 2*Pi
 		m_dRFSpoilIncrement = fmod(m_dRFSpoilIncrement, (double) RFMAXPHASEdeg);
@@ -1534,28 +2301,22 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 		m_sADCsgSet.increasePhase(m_dRFSpoilPhase);
 		m_sADCsgNeg.decreasePhase(m_dRFSpoilPhase);
 		m_sSRFzSet.increasePhase(m_dRFSpoilPhase);
-		m_sSRFzNeg.decreasePhase(m_dRFSpoilPhase);		
-	}
-
-	if(u_Mode==2){
-		//. --------------------------------------------------------------------------
-		//. 180 phase loop if TRUEFISP
-		//. --------------------------------------------------------------------------
-		m_sSRFzSet.increasePhase (180) ;    /*! EGA-05 !*/
-		m_sSRFzNeg.decreasePhase (180) ;    /*! EGA-05 !*/
-
-		m_sADCzSet.increasePhase (180) ;    /*! EGA-05 !*/
-		m_sADCzNeg.decreasePhase (180 ) ;    /*! EGA-05 !*/
-
-
-		while (m_sSRFzSet.getPhase() > (double)RFMAXPHASEdeg )
+		m_sSRFzNeg.decreasePhase(m_dRFSpoilPhase);
+		for (int i=0;i<u_lPulses;i++)
 		{
-			m_sSRFzSet.increasePhase(-RFMAXPHASEdeg);
-			m_sSRFzNeg.decreasePhase(+RFMAXPHASEdeg);
-			m_sADCzSet.increasePhase (-RFMAXPHASEdeg);   
-			m_sADCzNeg.decreasePhase (+RFMAXPHASEdeg);  
+			m_sRFzSetArray[i].sSRFzSetTab.increasePhase(m_dRFSpoilPhase);
+			m_sRFzNegArray[i].sSRFzNegTab.decreasePhase(m_dRFSpoilPhase);
+
+			m_sRFzWatSetArray[i].sSRFzWatSetTab.increasePhase(m_dRFSpoilPhase);
+			m_sRFzWatNegArray[i].sSRFzWatNegTab.decreasePhase(m_dRFSpoilPhase);
 		}
-	}	
+		m_sSRF02zSet.increasePhase(m_dRFSpoilPhase);
+		m_sSRF02zNeg.decreasePhase(m_dRFSpoilPhase);
+	/*	std::cout << "m_sRFzSetArray = " << m_sRFzSetArray[0].sSRFzSetTab.getPhase() << std::endl;
+		std::cout << "m_dRFSpoilPhase = " << m_dRFSpoilPhase << std::endl;*/
+	}
+	
+		
 
 	//. ---------------------------------------------------------------------------
 	//. Begin of event block
@@ -1571,27 +2332,137 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 	//- *************************************************************************************************************
 
 	 //-----------------------------------------Slice Selection/Excitation--------------------------------------------
-	 fRTEI(lT                       ,&m_sSRFzSet, &m_sSRF,      0,             0,            0,            0,        0);
-	 fRTEI(lT + m_sSRF.getDuration(),&m_sSRFzNeg,       0,      0,             0,            0,            0,        0);
 
+	 if(u_lFWSE == 1){
+		if(ProjectionNumber%2 == 1){
+			fRTEI(lT                       ,&m_sRFzSetArray[0].sSRFzSetTab, 0,      0,             0,            0,            0,        0);
+			m_sRFArray[0].sRFTab.run(lT);
+			fRTEI(lT+(m_sRFArray[0].sRFTab.getDuration())                       ,&m_sRFzNegArray[0].sSRFzNegTab, 0,      0,             0,            0,            0,        0);
+			
+			std::cout << "Fat-----------------m_sRFArray0 = " << m_sRFArray[0].sRFTab.getFlipAngle()  << std::endl;	
+			 if(u_lPulses>1){
+				 for (int i=1;i<u_lPulses;i++)
+				 {
+					 
+					 //m_sRFzSetArray[i].sSRFzSetTab
+						lT=fSDSRoundUpGRT(lT+m_timeBwPulses);
+						fRTEI(lT                       ,&m_sRFzSetArray[i].sSRFzSetTab, 0,      0,             0,            0,            0,        0);
+						std::cout << "m_sRFArrayi = " << m_sRFArray[i].sRFTab.getFlipAngle()  << std::endl;	
+						m_sRFArray[i].sRFTab.run(lT);
+						fRTEI(lT+(m_sRFArray[0].sRFTab.getDuration())                       ,&m_sRFzNegArray[i].sSRFzNegTab	, 0,      0,             0,            0,            0,        0);	
+				 }	 
+			 }
+		 }
+		 else{
+			 fRTEI(lT                       ,&m_sRFzWatSetArray[0].sSRFzWatSetTab, 0,      0,             0,            0,            0,        0);
+			 m_sRFWatArray[0].sRFWatTab.run(lT);
+			 fRTEI(lT+(m_sRFWatArray[0].sRFWatTab.getDuration())                       ,&m_sRFzWatNegArray[0].sSRFzWatNegTab, 0,      0,             0,            0,            0,        0);
+			//std::cout << "ProjectionNumber = " << ProjectionNumber%2 << std::endl;
+			std::cout << "Wat-----------------m_sRFArray0 = " << m_sRFWatArray[0].sRFWatTab.getFlipAngle()  << std::endl;
+			  if(u_lPulses>1){
+				 for (int i=1;i<u_lPulses;i++)
+				 {
+					 
+					 //m_sRFzSetArray[i].sSRFzSetTab
+						lT=fSDSRoundUpGRT(lT+m_timeBwPulses);
+						fRTEI(lT                       ,&m_sRFzWatSetArray[i].sSRFzWatSetTab, 0,      0,             0,            0,            0,        0);
+						std::cout << "Watm_sRFArrayi = " << m_sRFWatArray[i].sRFWatTab.getFlipAngle()  << std::endl;
+						m_sRFWatArray[i].sRFWatTab.run(lT);
+						fRTEI(lT+(m_sRFWatArray[0].sRFWatTab.getDuration())                       ,&m_sRFzWatNegArray[i].sSRFzWatNegTab	, 0,      0,             0,            0,            0,        0);	
+				 }	 
+			 }
+		 }
+	}
+	if(u_lFWSE == 2){	
+		fRTEI(lT                       ,&m_sRFzSetArray[0].sSRFzSetTab, 0,      0,             0,            0,            0,        0);
+		m_sRFArray[0].sRFTab.run(lT);
+		fRTEI(lT+(m_sRFArray[0].sRFTab.getDuration())                       ,&m_sRFzNegArray[0].sSRFzNegTab, 0,      0,             0,            0,            0,        0);
+		
+			
+		 if(u_lPulses>1){
+			 for (int i=1;i<u_lPulses;i++)
+			 {
+				 
+				 //m_sRFzSetArray[i].sSRFzSetTab
+					lT=fSDSRoundUpGRT(lT+m_timeBwPulses);
+					fRTEI(lT                       ,&m_sRFzSetArray[i].sSRFzSetTab, 0,      0,             0,            0,            0,        0);
+			
+					m_sRFArray[i].sRFTab.run(lT);
+					fRTEI(lT+(m_sRFArray[0].sRFTab.getDuration())                       ,&m_sRFzNegArray[i].sSRFzNegTab	, 0,      0,             0,            0,            0,        0);	
+			 }	 
+		 }	 	
+	}
+
+	if(u_lFWSE == 3){
+		
+	
+			 fRTEI(lT                       ,&m_sRFzWatSetArray[0].sSRFzWatSetTab, 0,      0,             0,            0,            0,        0);
+			 m_sRFWatArray[0].sRFWatTab.run(lT);
+			 fRTEI(lT+(m_sRFWatArray[0].sRFWatTab.getDuration())                       ,&m_sRFzWatNegArray[0].sSRFzWatNegTab, 0,      0,             0,            0,            0,        0);
+			//std::cout << "ProjectionNumber = " << ProjectionNumber%2 << std::endl;
+				
+			  if(u_lPulses>1){
+				 for (int i=1;i<u_lPulses;i++)
+				 {
+					 
+					 //m_sRFzSetArray[i].sSRFzSetTab
+						lT=fSDSRoundUpGRT(lT+m_timeBwPulses);
+						fRTEI(lT                       ,&m_sRFzWatSetArray[i].sSRFzWatSetTab, 0,      0,             0,            0,            0,        0);
+				
+						m_sRFArray[i].sRFTab.run(lT);
+						fRTEI(lT+(m_sRFWatArray[0].sRFWatTab.getDuration())                       ,&m_sRFzWatNegArray[i].sSRFzWatNegTab	, 0,      0,             0,            0,            0,        0);	
+				 }	 
+			 
+		 }
+	}
+		
+	 //}
+/*
+		fRTEI(lT                       ,&m_sSRF_014zSet, &m_,      0,             0,            0,            0,        0);
+		fRTEI(lT + m_sSRF_014.getDuration(),&m_sSRF_014zNeg,       0,      0,             0,            0,            0,        0);
+		lT = lT + m_timeBwPulses;
+		fRTEI(lT                       ,&m_sSRF_02zSet, &m_sSRF_02,      0,             0,            0,            0,        0);
+		fRTEI(lT + m_sSRF_02.getDuration(),&m_sSRF_02zNeg,       0,      0,             0,            0,            0,        0);
+		lT = lT + m_timeBwPulses;
+		fRTEI(lT                       ,&m_sSRF_03zSet, &m_sSRF_03,      0,             0,            0,            0,        0);
+		fRTEI(lT + m_sSRF_03.getDuration(),&m_sSRF_03zNeg,       0,      0,             0,            0,            0,        0);
+		lT = lT + m_timeBwPulses;
+		fRTEI(lT                       ,&m_sSRF_014zSet, &m_sSRF_014,      0,             0,            0,            0,        0);
+		fRTEI(lT + m_sSRF_014.getDuration(),&m_sSRF_014zNeg,       0,      0,             0,            0,            0,        0);
+		lT = lT + m_sSRF_014.getDuration();
+	 }
+*/
 	 //----------------------------------------------Sampling---------------------------------------------------------
-	 lT += m_sSRF.getDuration() + MinDurationBetweenRFandADC + m_alTEFil[0];	
-
-	 if(l_offset>0){
+	
+	lT += m_sSRF.getDuration() + MinDurationBetweenRFandADC + m_alTEFil[0];	
+	 
+    if(l_offset>0){
 		fRTEI(lT                              ,&m_sADCsgSet  ,        0, &m_sSgADC[0]  ,             0,            0,             0,    0);
 		lT += fSDSRoundUpGRT(l_offset*(m_sADC[0].getDwellTime())/(1000));
 		fRTEI(lT                              ,&m_sADCsgNeg  ,        0, 0  ,             0,            0,             0,    0);
 	 }
-
-	 fRTEI(lT   ,            0,        0,         0, &m_sGradPhaseDephFM  , &m_sGradReadDephFM  ,&m_sGradSliceDephFM   ,    0);
-	 fRTEI(lT  + m_sGradSliceDephFM.getTotalTime(),            0,        0,         0, &m_sGradPhase  , &m_sGradRead  ,&m_sGradSlice   ,    0);
-
+	
+	 if(u_AcqMode == 2){
+		fRTEI(lT   ,            0,        0,         0, &m_sGradPhaseDephFM  , &m_sGradReadDephFM  ,&m_sGradSliceDephFM   ,    0);
+		fRTEI(lT  + m_sGradSliceDephFM.getTotalTime(),            0,        0,         0, &m_sGradPhase  , &m_sGradRead  ,&m_sGradSlice   ,    0);
+	 }
+	 else{
+		fRTEI(lT ,            0,        0,         0, &m_sGradPhase  , &m_sGradRead  ,&m_sGradSlice   ,    0);
+	 }
 
 	 if(lKernelMode!=KERNEL_PREPARE){
-		lT += m_sGradRead.getRampUpTime() + m_sGradReadDephFM.getTotalTime();
-		fRTEI(lT + (m_sGradRead.getFlatTopTime() - m_sADC[0].getDuration())/2                                ,    &m_sADCzSet  ,        0,   &m_sADC[0],             0,            0,             0,    0);
-		fRTEI(lT + (m_sGradRead.getFlatTopTime() - m_sADC[0].getDuration())/2 +m_sADC[0].getRoundedDuration(),    &m_sADCzNeg  ,        0,            0,             0,            0,             0,    0);
-	 }
+		
+		if (u_AcqMode == 2){
+			lT += m_sGradRead.getRampUpTime();
+			lT += m_sGradReadDephFM.getTotalTime();
+			fRTEI(lT + (m_sGradRead.getFlatTopTime() - m_sADC[0].getDuration())/2                                ,    &m_sADCzSet  ,        0,   &m_sADC[0],             0,            0,             0,    0);
+			fRTEI(lT + (m_sGradRead.getFlatTopTime() - m_sADC[0].getDuration())/2 +m_sADC[0].getRoundedDuration(),    &m_sADCzNeg  ,        0,            0,             0,            0,             0,    0);
+		}
+		else{
+			fRTEI(lT                                ,    &m_sADCzSet  ,        0,   &m_sADC[0],             0,            0,             0,    0);
+			fRTEI(lT + m_sADC[0].getRoundedDuration(),    &m_sADCzNeg  ,        0,            0,             0,            0,             0,    0);
+		}
+	}
 	 else{
 		fRTEI(lT                              ,0  ,        0, 0  ,             0,            0,             0,    0);
 		fRTEI(lT + m_sADC[0].getRoundedDuration(),0  ,        0,         0,             0,            0,             0,    0);
@@ -1603,7 +2474,7 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 	 if(u_Mode==1){
 
 		fRTEI(lT                              ,            0,        0,         0, &m_sGradPhaseRephFM  , &m_sGradReadRephFM  ,&m_sGradSliceRephFM   ,    0);
-		lT += m_sGradReadRephFM.getTotalTime(); 
+		lT += m_sGradPhaseRephFM.getTotalTime(); 
 		fRTEI(lT,      0 ,       0,        0,         &m_sGSpoil,     &m_sGSpoil,           &m_sGSpoil,     0    );
 		lT +=  m_sGSpoil.getTotalTime();
 
@@ -1623,7 +2494,8 @@ NLS_STATUS FM_MP2RAGE::runKernel(MrProt &rMrProt,SeqLim &rSeqLim, SeqExpo &rSeqE
 	//. End of event block
 	//. ---------------------------------------------------------------------------
 	return(lStatus);	
-
+	
+	
 }
 
 
